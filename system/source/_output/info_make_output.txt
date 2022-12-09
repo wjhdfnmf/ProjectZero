@@ -1,0 +1,4 @@
+
+# from source folder, in terminal
+
+make $> _output/make_output.txt

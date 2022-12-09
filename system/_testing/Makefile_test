@@ -1,0 +1,13 @@
+
+# makefile test
+# new: only compile changed files
+
+g++ -c utilities.hpp -o util.o
+g++ -c pendulum.hpp -o domain.o
+g++ -c neural_network.hpp -o agent.o
+g++ -c network_trainer.hpp -o trainer.o
+
+g++ -c system.hpp -o system.o
+g++ -c main.cpp -o main.o
+
+g++ util.o domain.o agent.o trainer.o system.o main.o -o run

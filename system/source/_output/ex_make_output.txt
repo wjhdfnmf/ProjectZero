@@ -1,0 +1,97 @@
+g++ network_trainer.hpp cart_balance.hpp system.hpp main.cpp -o run
+network_trainer.hpp: In member function ‘void Trainer::Trainer::cycle()’:
+network_trainer.hpp:287:14: error: no matching function for call to ‘Trainer::Trainer::get_state()’
+    get_state();
+              ^
+network_trainer.hpp:144:10: note: candidate: void Trainer::Trainer::get_state(std::vector<double>)
+     void Trainer::get_state(std::vector <double> in) {
+          ^~~~~~~
+network_trainer.hpp:144:10: note:   candidate expects 1 argument, 0 provided
+network_trainer.hpp: In member function ‘void Trainer::Trainer::run_best_network()’:
+network_trainer.hpp:336:14: error: no matching function for call to ‘Trainer::Trainer::get_state()’
+    get_state();
+              ^
+network_trainer.hpp:144:10: note: candidate: void Trainer::Trainer::get_state(std::vector<double>)
+     void Trainer::get_state(std::vector <double> in) {
+          ^~~~~~~
+network_trainer.hpp:144:10: note:   candidate expects 1 argument, 0 provided
+cart_balance.hpp: In function ‘bool CB::return_below_horizontal()’:
+cart_balance.hpp:219:10: error: ‘below_horizontal’ was not declared in this scope
+   return below_horizontal;
+          ^~~~~~~~~~~~~~~~
+In file included from system.hpp:20:0:
+network_trainer.hpp: In member function ‘void Trainer::Trainer::cycle()’:
+network_trainer.hpp:287:14: error: no matching function for call to ‘Trainer::Trainer::get_state()’
+    get_state();
+              ^
+network_trainer.hpp:144:10: note: candidate: void Trainer::Trainer::get_state(std::vector<double>)
+     void Trainer::get_state(std::vector <double> in) {
+          ^~~~~~~
+network_trainer.hpp:144:10: note:   candidate expects 1 argument, 0 provided
+network_trainer.hpp: In member function ‘void Trainer::Trainer::run_best_network()’:
+network_trainer.hpp:336:14: error: no matching function for call to ‘Trainer::Trainer::get_state()’
+    get_state();
+              ^
+network_trainer.hpp:144:10: note: candidate: void Trainer::Trainer::get_state(std::vector<double>)
+     void Trainer::get_state(std::vector <double> in) {
+          ^~~~~~~
+network_trainer.hpp:144:10: note:   candidate expects 1 argument, 0 provided
+In file included from system.hpp:21:0:
+cart_balance.hpp: In function ‘bool CB::return_below_horizontal()’:
+cart_balance.hpp:219:10: error: ‘below_horizontal’ was not declared in this scope
+   return below_horizontal;
+          ^~~~~~~~~~~~~~~~
+system.hpp: In constructor ‘Domain::Domain()’:
+system.hpp:29:21: error: ‘test_count’ was not declared in this scope
+             p.setup(test_count);  // NEED TEST COUNT FROM AGENT // FIX
+                     ^~~~~~~~~~
+system.hpp: In member function ‘void Agent::agent_fitness(std::vector<double>)’:
+system.hpp:70:19: error: ‘class Trainer::Trainer’ has no member named ‘get_fitness’; did you mean ‘best_fitness’?
+             agent.get_fitness(in);
+                   ^~~~~~~~~~~
+system.hpp: In constructor ‘System::System::System()’:
+system.hpp:99:13: error: ‘doamin’ was not declared in this scope
+             doamin = d;
+             ^~~~~~
+In file included from system.hpp:20:0,
+                 from main.cpp:2:
+network_trainer.hpp: In member function ‘void Trainer::Trainer::cycle()’:
+network_trainer.hpp:287:14: error: no matching function for call to ‘Trainer::Trainer::get_state()’
+    get_state();
+              ^
+network_trainer.hpp:144:10: note: candidate: void Trainer::Trainer::get_state(std::vector<double>)
+     void Trainer::get_state(std::vector <double> in) {
+          ^~~~~~~
+network_trainer.hpp:144:10: note:   candidate expects 1 argument, 0 provided
+network_trainer.hpp: In member function ‘void Trainer::Trainer::run_best_network()’:
+network_trainer.hpp:336:14: error: no matching function for call to ‘Trainer::Trainer::get_state()’
+    get_state();
+              ^
+network_trainer.hpp:144:10: note: candidate: void Trainer::Trainer::get_state(std::vector<double>)
+     void Trainer::get_state(std::vector <double> in) {
+          ^~~~~~~
+network_trainer.hpp:144:10: note:   candidate expects 1 argument, 0 provided
+In file included from system.hpp:21:0,
+                 from main.cpp:2:
+cart_balance.hpp: In function ‘bool CB::return_below_horizontal()’:
+cart_balance.hpp:219:10: error: ‘below_horizontal’ was not declared in this scope
+   return below_horizontal;
+          ^~~~~~~~~~~~~~~~
+In file included from main.cpp:2:0:
+system.hpp: In constructor ‘Domain::Domain()’:
+system.hpp:29:21: error: ‘test_count’ was not declared in this scope
+             p.setup(test_count);  // NEED TEST COUNT FROM AGENT // FIX
+                     ^~~~~~~~~~
+system.hpp: In member function ‘void Agent::agent_fitness(std::vector<double>)’:
+system.hpp:70:19: error: ‘class Trainer::Trainer’ has no member named ‘get_fitness’; did you mean ‘best_fitness’?
+             agent.get_fitness(in);
+                   ^~~~~~~~~~~
+system.hpp: In constructor ‘System::System::System()’:
+system.hpp:99:13: error: ‘doamin’ was not declared in this scope
+             doamin = d;
+             ^~~~~~
+main.cpp: In function ‘int main()’:
+main.cpp:6:12: error: expected primary-expression before ‘s’
+     System s;
+            ^
+make: *** [Makefile:7: all] Error 1

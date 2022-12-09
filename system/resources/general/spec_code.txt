@@ -1,0 +1,10 @@
+
+ Code Specs
+------------
+
+compiler: g++
+version: c++ 11
+
+- file types:
+header: *.hpp
+main: *.cpp

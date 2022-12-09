@@ -1,0 +1,24 @@
+
+Cycle
+1. create agent(s) and domain
+2. aquire agent parameters
+3. cycle
+	a. domain -state> agent
+	b. agent  -action> domain
+	c. domain -fitness> agent
+
+Posible flags
+* domain fail
+* last round
+* trainer end (no trainer?)
+
+
+General:
+- round_current
+- 
+
+Terminology:
+- agent
+- domain
+- round
+- 

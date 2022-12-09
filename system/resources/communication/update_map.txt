@@ -1,0 +1,16 @@
+domain
+cart balance
+------------
+out:
+	0: domain_fail - for training (bool)
+in:
+	0: export_states (bool)
+	
+agent
+network trainer
+-------------
+out:
+	0: generate_new_domain request (bool)
+in:
+	0: domain_fail (bool)
+	1: test best network (bool)

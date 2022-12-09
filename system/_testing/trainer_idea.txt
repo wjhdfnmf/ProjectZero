@@ -1,0 +1,16 @@
+
+- seperate EA from trainer
+- system runs either trainer or single  (two systems...)
+- system includes agent and domain
+- system manages communication
+
+system
+has
+- agents or populations
+- domain
+- round number, ect.
+
+trainer
+has
+- prune/populate algorithm (EA)
+--- given fitness and population (agent)

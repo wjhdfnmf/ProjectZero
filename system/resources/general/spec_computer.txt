@@ -1,0 +1,11 @@
+
+  XG server RGB
+-----------------
+
+date: 1/1/2017
+
+os: ArchLinux
+
+hardware specs:
+- RAM: 
+- CPU cores: 2; speed: 
