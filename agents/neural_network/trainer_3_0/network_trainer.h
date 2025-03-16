@@ -15,6 +15,8 @@ Copyright (c) William Gregory.  All rights reserved.
 //#define NT_DEBUG
 //#define NT_VERBOSE
 
+#include <sstream>
+
 #include "../network/neural_network.h"  // agent
 #include "../../../domains/_not_mine/cart_balance/cart_balance.h"  // DOMAIN SPECIFIC
 
@@ -24,7 +26,7 @@ namespace Trainer
 	{
 	private:
         std::vector <Network::Network> population;
-		std::vector <double> pop_fitness;
+		std::vector <double> pop_fitness; // .at(population)
         double best_fitness;
         Network::Network best_network;
 		double first_best_fitness;
@@ -48,7 +50,7 @@ namespace Trainer
 
         void get_state();
         void give_action();
-        bool get_reward();
+        void get_reward();
 
 		void progress();
 		void export_fitness_history();
@@ -56,7 +58,6 @@ namespace Trainer
 		Network::Network generate_network();
 		void generate_population();
 		std::vector <double> cycle_network(std::vector <double>&, Network::Network&);
-		void log_reward(double&, unsigned int&);
 		void cycle();
 		void error_manager(std::vector <double>&);
 		void run_best_network();
@@ -84,12 +85,13 @@ namespace Trainer
 #endif
 		// settings
 		test_count = 1000; // network/domain cycles
-		round_max = 100;
+		round_max = 400;
 		population_size = 100;
-	    hidden_layer_size = 8;
-	    mutate_mod = 0.01;
-	    mutate_chance = 0.3;
-		double max_torque = 100.0;  // DOMAIN SPECIFIC
+	    hidden_layer_size = 6;
+	    mutate_mod = 0.3;
+	    mutate_chance = 0.1;
+		double max_torque = 0.0;  // DOMAIN SPECIFIC
+		double max_force = 100.0;  // DOMAIN SPECIFIC
 		// end settings
 		// do not modify
 		population.reserve(population_size);
@@ -100,12 +102,13 @@ namespace Trainer
 		ID_next = 1;
 		best_fitness = HUGE_VAL;
 		input_layer_size = 3;  // fixed
-		output_layer_size = 1; // fixed
+		output_layer_size = 2; // fixed
 		nodes_per_layer.clear();
 		nodes_per_layer.push_back(input_layer_size);
 		nodes_per_layer.push_back(hidden_layer_size);
 		nodes_per_layer.push_back(output_layer_size);
 		max_output.push_back(max_torque);  // DOMAIN SPECIFIC
+		max_output.push_back(max_force);  // DOMAIN SPECIFIC
     }
 
     void Trainer::print_intro() {
@@ -160,12 +163,12 @@ namespace Trainer
 		domain.get_action(last_action);
     }
 
-    bool Trainer::get_reward() {
+    void Trainer::get_reward() {
 #ifdef NT_DEBUG
 		std::cout << "debug: get_reward() start" << std::endl;
 #endif
 		last_fitness = domain.give_reward().at(0);
-		return domain.return_below_horizontal();
+		pop_fitness.at(network_test_count) = pop_fitness.at(network_test_count) + last_fitness;
     }
     //-----------------------------
 
@@ -198,7 +201,7 @@ namespace Trainer
 	// export all fitness history to file
 	void Trainer::export_fitness_history() {
 		std::ofstream file;
-		file.open("/home/boss/data/working/personal/ProjectZero/agents/neural_network/trainer_3_0/output_results/fitness_history.csv", std::ofstream::out | std::ofstream::trunc);
+		file.open("/home/boss/data/working/personal/ProjectZero/agents/neural_network/trainer_3_0/outputs/fitness_history.csv", std::ofstream::out | std::ofstream::trunc);
 		if (!file.is_open()) {
 			std::cerr << "ERROR: could not open file for writing" << std::endl;
 			return;
@@ -282,28 +285,16 @@ namespace Trainer
 		return t_out;
 	}
 
-	// add last fitness to pop_fitness
-	void Trainer::log_reward(double& in_val, unsigned int& in_count) {
-#ifdef NT_DEBUG
-		std::cout << "debug: log_reward() start" << std::endl;
-#endif
-		pop_fitness.at(in_count) = pop_fitness.at(in_count) + in_val;
-	}
-
 	// cycle agent - domain for 'test_count' iterations
 	void Trainer::cycle() {
 #ifdef NT_DEBUG
 		std::cout << "debug: cycle() start" << std::endl;
 #endif
-		bool t = false; // domain specific
 		for (std::size_t i = 0; i<test_count; ++i) {
 			get_state();
 			last_action = cycle_network(last_state, population.at(network_test_count));
 			give_action();
-			t = get_reward();  // domain specific
-			if(t) last_fitness += test_count-i-1 * 1000000.0;  // penalty for remaining tests
-			log_reward(last_fitness, network_test_count);
-			if (t) i = test_count;  // quit
+			get_reward();
 		}
 	}
 
@@ -347,10 +338,23 @@ namespace Trainer
 		domain = generate_domain();
 		for (std::size_t i = 0; i<test_count; ++i) {
 			get_state();
-			last_action = cycle_network(last_state, population.at(network_test_count));
+			last_action = cycle_network(last_state, best_network);
 			give_action();
 		}
 		domain.export_all_states();
+
+		std::vector <std::vector <std::vector <double> > > data = best_network.export_weights();
+
+		std::ofstream out("best_network.bin", std::ios_base::binary);
+		size_t X = data.size(), Y = X ? data[0].size() : 0, Z = Y ? data[0][0].size() : 0;
+		out.write(reinterpret_cast<const char*>(&X), sizeof(X));
+		out.write(reinterpret_cast<const char*>(&Y), sizeof(Y));
+		out.write(reinterpret_cast<const char*>(&Z), sizeof(Z));
+		for (const auto& outer : data) {
+			for (const auto& middle : outer) {
+				out.write(reinterpret_cast<const char*>(middle.data()), Z * sizeof(double));
+			}
+		}
 	}
 
     //

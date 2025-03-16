@@ -20,12 +20,12 @@ namespace CB {  // Cart Balance
 
 	// global constants
 	const double g = 9.81; // gravity - m/s^2
-	const double dt = 0.01; // time step - s
+	const double dt = 0.1; // time step - s
 
 	// cart structure
 	struct Cart {
 		// mass of the cart - constant
-		const int mass_c;
+		double mass_c;
 		// constrained to x axis
 		double x; // position - m
 		double x_dot; // velocity - m/s
@@ -46,12 +46,17 @@ namespace CB {  // Cart Balance
 		/// variables
 		// all actions for log
 		std::vector <double> torq_history;
+		// all forces for log
+		std::vector <double> force_history;
 		// all fitness' for log
 		std::vector <double> fitness_history;
 		// all states.  last element is most current
 		std::vector <PendState> pend;
+		std::vector <Cart> cart;
 		// applied torq - action
 		double torq;
+		// force applied to cart - system dynamics
+		double force;
 		// last determined fitness
 		double fitness;
 		/// functions
@@ -87,6 +92,7 @@ namespace CB {  // Cart Balance
 						double in_length = 1)
 	{
 		PendState initial;
+		Cart initial_cart;
 		torq_history.reserve(in_rounds);
 		fitness_history.reserve(in_rounds);
 		pend.reserve(in_rounds);
@@ -101,9 +107,18 @@ namespace CB {  // Cart Balance
 		initial.theta = theta_init * M_PI / 180;
 		initial.theta_dot = 0; // rad/s
 		initial.theta_dd = 0;  // rad/s^2
+		//
+		initial_cart.x = 0; // m
+		initial_cart.x_dot = 0; // m/s
+		initial_cart.x_dd = 0; // m/s^2
+		initial_cart.mass_c = 10; // kg
+		//
 		torq = 0; // N*m
+		force = 0; // N
 		pend.push_back(initial);
+		cart.push_back(initial_cart);
 		torq_history.push_back(torq);
+		force_history.push_back(force);
 		fitness_history.push_back(determine_reward());
 	}
 
@@ -111,14 +126,47 @@ namespace CB {  // Cart Balance
 	// note: aciton must have been set. use 'get_action'
 	void Pendulum::cycle() {
 		PendState nextState;
+		Cart cartState;
 		// - calculations - 
 		// torque to theta dd
-		nextState.theta_dd = -g*cos(pend.at(pend.size() - 1).theta) / (mass_p*length) + torq;
+		//nextState.theta_dd = -g*cos(pend.at(pend.size() - 1).theta) / (mass_p*length) + torq;
 		// theta_dd to theta_dot
-		nextState.theta_dot = pend.at(pend.size() - 1).theta_dot + nextState.theta_dd*dt;
+		//nextState.theta_dot = pend.at(pend.size() - 1).theta_dot + nextState.theta_dd*dt;
 		// theta_dot to theta
-		nextState.theta = pend.at(pend.size() - 1).theta + nextState.theta_dot*dt;
+		//nextState.theta = pend.at(pend.size() - 1).theta + nextState.theta_dot*dt;
 		// - end calculations -
+
+		// - cart calculations -
+		// Current state (from last entry)
+		double theta = pend.at(pend.size() - 1).theta;
+		double theta_dot = pend.at(pend.size() - 1).theta_dot;
+		double x = cart.at(cart.size() - 1).x;
+		double x_dot = cart.at(cart.size() - 1).x_dot;
+	
+		// Compute accelerations (coupled equations)
+		double x_dd = 0.0;      // Cart acceleration
+		double theta_dd = 0.0;  // Pendulum angular acceleration
+	
+		// Step 1: Approximate x_dd assuming theta_dd contribution is small initially
+		x_dd = (force - mass_p * length * theta_dot * theta_dot * cos(theta)) / (cart.at(cart.size() - 1).mass_c + mass_p);
+	
+		// Step 2: Compute theta_dd with the cart's acceleration
+		theta_dd = (-g * cos(theta) + torq / (mass_p * length) - x_dd * sin(theta)) / length;
+	
+		// Step 3: Refine x_dd with theta_dd (optional, for better coupling)
+		x_dd = (force - mass_p * length * (theta_dd * sin(theta) + theta_dot * theta_dot * cos(theta))) / (cart.at(cart.size() - 1).mass_c + mass_p);
+	
+		// Update cart state
+		cartState.x_dd = x_dd;
+		cartState.x_dot = cart.at(cart.size() - 1).x_dot + cartState.x_dd * dt;
+		cartState.x = cart.at(cart.size() - 1).x + cartState.x_dot * dt;
+		cartState.mass_c = cart.at(cart.size() - 1).mass_c; // Mass remains constant
+	
+		// Update pendulum state
+		nextState.theta_dd = theta_dd;
+		nextState.theta_dot = pend.at(pend.size() - 1).theta_dot + nextState.theta_dd * dt;
+		nextState.theta = pend.at(pend.size() - 1).theta + nextState.theta_dot * dt;
+
 		// keep theta between 0 and 2*PI
 		if (nextState.theta < 0.0) nextState.theta = nextState.theta + 2*M_PI;
 		if (nextState.theta > 2*M_PI) nextState.theta = nextState.theta - 2*M_PI;
@@ -127,8 +175,10 @@ namespace CB {  // Cart Balance
 		<< nextState.theta_dd << "," << cos(nextState.theta) << "," << sin(nextState.theta) \
 		<< std::endl;
 #endif
-		pend.push_back(nextState); // save new state
+		pend.push_back(nextState); // save new pend state
+		cart.push_back(cartState); // save new cart state
 		torq_history.push_back(torq); // save torq for log
+		force_history.push_back(force); // save force for log
 		fitness = determine_reward(); // determine fitness
 		fitness_history.push_back(fitness);
 	}
@@ -139,9 +189,9 @@ namespace CB {  // Cart Balance
 
 		// fitness weights
 		// ---------------------
-		double tp_weight = 1.0;  		// theta
-		double tv_weight = 10.0;  		// angular velocity
-		double ch_weight = 100.0;  		// below horizontal axis
+		double tp_weight = 100.0;  		// theta
+		double tv_weight = 1000.0;  		// angular velocity
+		double ch_weight = 10.0;  		// below horizontal axis
 		//double tu_weight = 0.0;  		// torq used penalty - not normalized
 		//double wd_weight = 1.0;		// wrong direction
 		// ---------------------
@@ -189,6 +239,7 @@ namespace CB {  // Cart Balance
 	// vector with torq in first element
 	void Pendulum::get_action(std::vector <double> in_action) {
 		torq = in_action.at(0);
+		force = in_action.at(1);
 		cycle();
 	}
 
@@ -235,12 +286,14 @@ namespace CB {  // Cart Balance
 			std::cerr << "ERROR: could not open file for writing" << std::endl;
 			return;
 		}
-		fout << "torq, x, y, theta, theta_dot, theta_dd, fitness, delta_theta" << "\n";
+		fout << "torq, px, py, theta, theta_dot, theta_dd, fitness, delta_theta, force, cx, x_dot, x_dd" << "\n";
 		for (std::size_t i=0; i<pend.size(); ++i) {
 			fout << torq_history.at(i) << ", " << cos(pend.at(i).theta) << \
 				", " << sin(pend.at(i).theta) << ", " << pend.at(i).theta*180/M_PI << \
 				", " << pend.at(i).theta_dot << ", " << pend.at(i).theta_dd << \
-				", " << fitness_history.at(i) << ", " << delta_theta(pend.at(i).theta)*180/M_PI << "\n";
+				", " << fitness_history.at(i) << ", " << delta_theta(pend.at(i).theta)*180/M_PI << \
+				", " << force_history.at(i) << ", " << cart.at(i).x << ", " << cart.at(i).x_dot << \
+				", " << cart.at(i).x_dd << "\n";
 		}	
 		fout.close();
 	}
