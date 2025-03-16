@@ -13,7 +13,7 @@
 #if (!exists(filename)) filename="default.png"
 
 # data location
-loc = "~/Documents/programming/GitHub/ProjectZero/neural_network/trainer/output_results/"
+loc = "~/data/working/personal/ProjectZero/agents/neural_network/_complete/old_trainner_dummy_domain/old_trainer/output_results/"
 
 ## output
 

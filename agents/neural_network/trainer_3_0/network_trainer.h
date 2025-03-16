@@ -4,7 +4,7 @@
 Network Trainer
 Version 3.0
 
-Created by William Gregory on October 27th to present.
+Created by William Gregory on October 27th 2016 to present.
 Copyright (c) William Gregory.  All rights reserved.
 
 */
@@ -14,8 +14,6 @@ Copyright (c) William Gregory.  All rights reserved.
 
 //#define NT_DEBUG
 //#define NT_VERBOSE
-
-#define PI 3.14159265
 
 #include "../network/neural_network.h"  // agent
 #include "../../../domains/_not_mine/cart_balance/cart_balance.h"  // DOMAIN SPECIFIC
@@ -80,18 +78,18 @@ namespace Trainer
         void train();
     };
 
-    Trainer::Trainer() {
+    Trainer::Trainer() : domain(1000) {
 #ifdef NT_DEBUG
 		std::cout << "debug: Trainer() start" << std::endl;
 #endif
 		// settings
-		test_count = 400; // network/domain cycles
+		test_count = 1000; // network/domain cycles
 		round_max = 100;
 		population_size = 100;
 	    hidden_layer_size = 8;
-	    mutate_mod = 0.1;
+	    mutate_mod = 0.01;
 	    mutate_chance = 0.3;
-		double max_torque = 1.0;  // DOMAIN SPECIFIC
+		double max_torque = 100.0;  // DOMAIN SPECIFIC
 		// end settings
 		// do not modify
 		population.reserve(population_size);
@@ -200,7 +198,11 @@ namespace Trainer
 	// export all fitness history to file
 	void Trainer::export_fitness_history() {
 		std::ofstream file;
-		file.open("fitness_history.csv", std::ofstream::out | std::ofstream::trunc);
+		file.open("/home/boss/data/working/personal/ProjectZero/agents/neural_network/trainer_3_0/output_results/fitness_history.csv", std::ofstream::out | std::ofstream::trunc);
+		if (!file.is_open()) {
+			std::cerr << "ERROR: could not open file for writing" << std::endl;
+			return;
+		}
 		for (std::size_t i=0; i<fitness_history.size(); ++i) {
 			for (std::size_t j=0; j<fitness_history.at(i).size(); ++j) {
 				if (j!=0) file << ", ";

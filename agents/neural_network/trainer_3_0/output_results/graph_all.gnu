@@ -7,7 +7,8 @@
 #
 
 # data location
-loc = "~/Documents/programming/GitHub/ProjectZero/domains/gridspace/neural_network/trainer/output_results/"
+loc = "~/data/working/personal/ProjectZero/agents/neural_network/trainer_3_0/output_results/"
+set datafile separator ","
 
 ## output
 
@@ -18,11 +19,15 @@ set key left box
 set xlabel "round"
 set ylabel "fitness"
 
+set xrange [1:101]
+
 set terminal pngcairo size 600,400
 
 ## error
 set title "Network Fitness"
 set output loc."error.png"
-plot loc."avg_error.txt"
+
+plot for [col=1:10] "fitness_history.csv" using 0:col with lines lc col title sprintf("Series %d", col)
+#plot loc."../fitness_history.csv"
 
 print "graphs generated"

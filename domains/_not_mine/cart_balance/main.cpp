@@ -3,10 +3,13 @@
 
 int main()
 {
-	// variables
-	CB::Pendulum pend;
 
-	for (std::size_t i=0; i<10; ++i) {
+	int rounds = 2000;
+
+	// variables
+	CB::Pendulum pend(rounds, 89);
+
+	for (std::size_t i=0; i<rounds; ++i) {
 		// calculate all of the states of the pendulum along the curve
 		pend.cycle();
 	}

@@ -27,15 +27,15 @@ namespace CB {  // Cart Balance
 		// mass of the cart - constant
 		const int mass_c;
 		// constrained to x axis
-		double x; // position
-		double x_dot; // velocity
-		double x_dd; // acceleration
+		double x; // position - m
+		double x_dot; // velocity - m/s
+		double x_dd; // acceleration - m/s^2
 	};
 
 	// pendulum state structure
 	struct PendState {
 		// with regards to the end of the pendulum
-		double theta; // current theta - rad
+		double theta; // current position - rad
 		double theta_dot; // current velocity of theta - rad/s
 		double theta_dd; // current acceleration of theta - rad/s^2
 	};
@@ -58,7 +58,7 @@ namespace CB {  // Cart Balance
 		// determine fitness
 		double determine_reward();
 	public:
-		Pendulum(unsigned int);
+		Pendulum(unsigned int, double, double, double);
 		// static variables
 		double mass_p; // mass of pendulum
 		double length; // length of the pendulum
@@ -75,13 +75,16 @@ namespace CB {  // Cart Balance
 		std::vector <double> give_reward();
 		// calculates next state given previous and an action
 		void cycle();
-		//
+		// return delta theta from PI/2 to input
 		double delta_theta(double);
 		// log all state history to file
 		void export_all_states();
 	};
 
-	Pendulum::Pendulum(unsigned int in_rounds)
+	Pendulum::Pendulum(	unsigned int in_rounds = 100,
+						double in_theta = 89,
+						double in_mass_p = 5,
+						double in_length = 1)
 	{
 		PendState initial;
 		torq_history.reserve(in_rounds);
@@ -90,7 +93,7 @@ namespace CB {  // Cart Balance
 		// - settings begin -
 		mass_p = 5; // kg
 		length = 1; // m
-		theta_init = 89; // degrees
+		theta_init = in_theta; // degrees
 		// - settings end -
 
 		// do not modify - setup inital state
@@ -136,15 +139,15 @@ namespace CB {  // Cart Balance
 
 		// fitness weights
 		// ---------------------
-		double tp_weight = 1000.0;  	// theta
-		double tv_weight = 0.0;  		// angular velocity
-		double ch_weight = 1000000.0;  	// below horizontal axis
+		double tp_weight = 1.0;  		// theta
+		double tv_weight = 10.0;  		// angular velocity
+		double ch_weight = 100.0;  		// below horizontal axis
 		//double tu_weight = 0.0;  		// torq used penalty - not normalized
 		//double wd_weight = 1.0;		// wrong direction
 		// ---------------------
 
 		// theta position
-		double fitness_1 = abs((delta_theta(pend.at(pend.size()-1)))/2*M_PI*tp_weight);
+		double fitness_1 = abs((delta_theta(pend.at(pend.size()-1).theta))/2*M_PI*tp_weight);
 		// theta velocity
 		double fitness_2 = abs((pend.at(pend.size()-1).theta_dot)*tv_weight);
 		if (fitness_2 > 10) fitness_2 = 10;
@@ -198,22 +201,28 @@ namespace CB {  // Cart Balance
 	}
 	// --------------------------------------
 
-	// return delta theta from PI/2 to input
+	// return delta theta from PI/2 to input in radians
 	// untested
 	double Pendulum::delta_theta(double in) {
 		double t = 0.0;
-		if (in > M_PI/2 && in < 3/2*M_PI) {
+		if (in > M_PI/2 && in <= 3/2*M_PI) {
 			// between: PI/2 and 3/2*PI
 			t = in - M_PI/2;
 		} else {
-			if (in < M_PI/2) {
+			if (in <= M_PI/2 && in >= 0) {
 				// between: 0 and PI/2
 				t = M_PI/2 - in;
 			} else {
 				// between: 3/2*PI and 2*PI
-				t = (5/2*M_PI - in); // 2*PI - in + PI/2
+				t = (2*M_PI - in + M_PI/2); // 2*PI - in + PI/2
 			}
 		}
+
+		// Ensure t is the shortest distance (in case of wrapping)
+		if (t > M_PI) {
+			t = 2 * M_PI - t;
+		}
+
 		return t;
 
 	}
@@ -221,18 +230,22 @@ namespace CB {  // Cart Balance
 	// export all state history to file "pend_state_log.csv" for review
 	void Pendulum::export_all_states() {
 		std::ofstream fout;
-		fout.open("pend_state_log.csv", std::ofstream::out | std::ofstream::trunc);
-		fout << "torq, x, y, theta, theta_dot, theta_dd, fitness" << "\n";
+		fout.open("/home/boss/data/working/personal/ProjectZero/domains/_not_mine/cart_balance/outputs/pend_state_log.csv", std::ofstream::out | std::ofstream::trunc);
+		if (!fout.is_open()) {
+			std::cerr << "ERROR: could not open file for writing" << std::endl;
+			return;
+		}
+		fout << "torq, x, y, theta, theta_dot, theta_dd, fitness, delta_theta" << "\n";
 		for (std::size_t i=0; i<pend.size(); ++i) {
 			fout << torq_history.at(i) << ", " << cos(pend.at(i).theta) << \
 				", " << sin(pend.at(i).theta) << ", " << pend.at(i).theta*180/M_PI << \
 				", " << pend.at(i).theta_dot << ", " << pend.at(i).theta_dd << \
-				", " << fitness_history.at(i) << "\n";
+				", " << fitness_history.at(i) << ", " << delta_theta(pend.at(i).theta)*180/M_PI << "\n";
 		}	
 		fout.close();
 	}
 
-	bool return_below_horizontal() {
+	bool Pendulum::return_below_horizontal() {
 		return below_horizontal;
 	}
 
