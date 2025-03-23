@@ -83,6 +83,9 @@ namespace Network {
 		// input: number of weights to generate
 		// output: populates weight vector
 		void generate_weights(unsigned int& in_size) {
+#ifdef NN_DEBUG
+			debug_call("generate_weights start");
+#endif
 			weights.clear();
 			// not output node - randomly generate weights
 			for (std::size_t i = 0; i<in_size; ++i) {
@@ -116,6 +119,9 @@ namespace Network {
 		// input: scaler network input after activation function
 		// output: vector, scaler times connection weight
 		std::vector <double> generate_outputs(double& in) {
+#ifdef NN_DEBUG
+			debug_call("generate_outputs start");
+#endif
 			std::vector <double> t_out;
 			switch (layer_type) {
 				case 0:
@@ -158,10 +164,12 @@ namespace Network {
 			layer_num = in_num;
 			// generate weights except for output layer
 			if (layer_type != 2) generate_weights(in_w_count);
-#ifdef NN_DEBUG
-			std::string tm = "creating node type: " + std::to_string(in_type) +
-				"; bias: " + std::to_string(bias) + "; weights: " + std::to_string(in_w_count);
-			debug_call(tm);
+#ifdef NN_VERBOSE
+			std::string ti = "weight count: " + std::to_string(in_w_count) +
+				"; bias: " + std::to_string(in_bias) + "; mod: " + std::to_string(in_mod) +
+				"; chance: " + std::to_string(in_chance) + "; type: " + std::to_string(in_type) +
+				"; num: " + std::to_string(in_num);
+			debug_call(ti);
 #endif
 		}
 

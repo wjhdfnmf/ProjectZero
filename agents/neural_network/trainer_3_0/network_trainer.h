@@ -14,6 +14,7 @@ Copyright (c) William Gregory.  All rights reserved.
 
 //#define NT_DEBUG
 //#define NT_VERBOSE
+//#define NT_TEST
 
 #include <sstream>
 
@@ -22,6 +23,14 @@ Copyright (c) William Gregory.  All rights reserved.
 
 namespace Trainer
 {
+	struct DomainState {
+		double theta;			// inital theta 			[degrees]
+		double mass_p;			// mass of pendulum 		[kg]
+		double length;			// length of pendulum		[m]
+		double mass_c;			// mass of cart 			[kg]
+		double track_length;	// length of track 			[m]
+	};
+
 	class Trainer
 	{
 	private:
@@ -35,12 +44,11 @@ namespace Trainer
 		std::vector <std::vector <double> > fitness_history;  // .at(round).at(population)  // reserve?
         unsigned int current_round;
 		unsigned int ID_next;
-		unsigned int network_test_count;  // current
+		unsigned int current_network;  // current
 		CB::Pendulum domain;  // domain // DOMAIN SPECIFIC
 		bool runtime_error;
 		double delta_time;
 		std::vector <double> max_output;
-
 		std::vector <double> last_state;
 		std::vector <double> last_action;
 		double last_fitness;
@@ -49,8 +57,7 @@ namespace Trainer
         void print_end();
 
         void get_state();
-        void give_action();
-        void get_reward();
+        void cycle_domain();
 
 		void progress();
 		void export_fitness_history();
@@ -59,21 +66,24 @@ namespace Trainer
 		void generate_population();
 		std::vector <double> cycle_network(std::vector <double>&, Network::Network&);
 		void cycle();
-		void error_manager(std::vector <double>&);
+		void error_manager();
 		void run_best_network();
 
-        std::vector <Network::Network> prune(std::vector <Network::Network>&, std::vector <double>&);
-        std::vector <Network::Network> populate(std::vector <Network::Network>&, unsigned int&);
+        void prune();
+        void populate();
     public:
         unsigned int round_max;
         unsigned int population_size;
         std::vector <unsigned int> nodes_per_layer;
 		double mutate_mod;
 		double mutate_chance;
+		double max_torque;
+		double max_force;
 		unsigned int test_count;  // domain cycles
 		unsigned int input_layer_size;
 		unsigned int hidden_layer_size;
 		unsigned int output_layer_size;
+		DomainState init_d;	// initial domain state
 
         Trainer();
         void train();
@@ -81,18 +91,30 @@ namespace Trainer
 
     Trainer::Trainer() : domain(1000) {
 #ifdef NT_DEBUG
-		std::cout << "debug: Trainer() start" << std::endl;
+		std::cout << "debug: Trainer()" << std::endl;
 #endif
-		// settings
-		test_count = 1000; // network/domain cycles
-		round_max = 400;
+
+		// NETWORK SETTINGS
+		test_count = 200;			// network itterations
+		round_max = 1000;			// rounds of simulation 	[dt]
 		population_size = 100;
-	    hidden_layer_size = 6;
-	    mutate_mod = 0.3;
-	    mutate_chance = 0.1;
-		double max_torque = 0.0;  // DOMAIN SPECIFIC
-		double max_force = 100.0;  // DOMAIN SPECIFIC
-		// end settings
+		mutate_mod = 0.2;
+		mutate_chance = 0.1;
+
+		max_torque = 0.0;			// 							[N*m]
+		max_force = 40.0;  			// 							[N]
+
+
+		DomainState domain;
+		// DOMAIN SETTINGS
+		domain.theta = 95;			// inital theta 			[degrees]
+		domain.mass_p = 1;			// mass of pendulum 		[kg]
+		domain.length = 1;			// length of pendulum		[m]
+		domain.mass_c = 2;			// mass of cart 			[kg]
+		domain.track_length = 10;	// length of track 			[m]
+
+		init_d = domain;
+
 		// do not modify
 		population.reserve(population_size);
 		pop_fitness.reserve(population_size);
@@ -101,19 +123,20 @@ namespace Trainer
         current_round = 0;
 		ID_next = 1;
 		best_fitness = HUGE_VAL;
-		input_layer_size = 3;  // fixed
-		output_layer_size = 2; // fixed
+		input_layer_size = 3;
+		hidden_layer_size = 4; // ADJUSTABLE
+		output_layer_size = 2;
 		nodes_per_layer.clear();
 		nodes_per_layer.push_back(input_layer_size);
 		nodes_per_layer.push_back(hidden_layer_size);
 		nodes_per_layer.push_back(output_layer_size);
-		max_output.push_back(max_torque);  // DOMAIN SPECIFIC
-		max_output.push_back(max_force);  // DOMAIN SPECIFIC
+		max_output.push_back(max_torque);
+		max_output.push_back(max_force);
     }
 
     void Trainer::print_intro() {
 #ifdef NT_DEBUG
-		std::cout << "debug: print_intro() start" << std::endl;
+		std::cout << "debug: print_intro()" << std::endl;
 #endif
         std::cout << std::endl;
         std::cout << "Network Trainer" << std::endl;
@@ -126,27 +149,26 @@ namespace Trainer
 
     void Trainer::print_end() {
 #ifdef NT_DEBUG
-		std::cout << "debug: print_end() start" << std::endl;
+		std::cout << "debug: print_end()" << std::endl;
 #endif
         std::cout << std::endl;
-        std::cout << "--------------------" << std::endl;
+		std::cout << std::endl;
 		if (delta_time > 60) {
 			unsigned int t_min = (unsigned int)(delta_time/60);
 			std::cout << "run time: " << t_min << "m " << delta_time-60*t_min << "s" << std::endl;
-		} else
-			std::cout << "run time: " << delta_time << " s" << std::endl;
-		std::cout << "training complete" << std::endl;
+		} else {
+			std::cout << "run time: " << delta_time << "s" << std::endl;
+		}
         std::cout << "best fitness: " << best_fitness << std::endl;
 		std::cout << "inital best fitness: " << first_best_fitness << std::endl;
 		std::cout << "last best fitness: " << last_best_fitness << std::endl;
-        std::cout << std::endl;
     }
 
     //----------------------------
     // get state from domain
     void Trainer::get_state() {
 #ifdef NT_DEBUG
-		std::cout << "debug: get_state() start" << std::endl;
+		std::cout << "debug: get_state()" << std::endl;
 #endif
 		std::vector <double> t_state = domain.give_state();  // theta, theta dot
 		last_state.clear();
@@ -156,20 +178,14 @@ namespace Trainer
     }
 
     // give action to domain
-    void Trainer::give_action() {
+    void Trainer::cycle_domain() {
 #ifdef NT_DEBUG
-		std::cout << "debug: give_action() start" << std::endl;
+		std::cout << "debug: cycle_domain()" << std::endl;
 #endif
-		domain.get_action(last_action);
+		last_fitness = domain.get_action(last_action).at(0);
+		pop_fitness.at(current_network) = pop_fitness.at(current_network) + last_fitness;
     }
 
-    void Trainer::get_reward() {
-#ifdef NT_DEBUG
-		std::cout << "debug: get_reward() start" << std::endl;
-#endif
-		last_fitness = domain.give_reward().at(0);
-		pop_fitness.at(network_test_count) = pop_fitness.at(network_test_count) + last_fitness;
-    }
     //-----------------------------
 
 	//
@@ -200,8 +216,12 @@ namespace Trainer
 
 	// export all fitness history to file
 	void Trainer::export_fitness_history() {
+#ifdef NT_DEBUG
+		std::cout << "debug: export_fitness_history()" << std::endl;
+#endif
 		std::ofstream file;
-		file.open("/home/boss/data/working/personal/ProjectZero/agents/neural_network/trainer_3_0/outputs/fitness_history.csv", std::ofstream::out | std::ofstream::trunc);
+		file.open("./outputs/fitness_history.csv",
+			std::ofstream::out | std::ofstream::trunc);
 		if (!file.is_open()) {
 			std::cerr << "ERROR: could not open file for writing" << std::endl;
 			return;
@@ -216,27 +236,25 @@ namespace Trainer
 		file.close();
 	}
 
+	////////////////////////////////////////
 	// generate single domain and return
 	CB::Pendulum Trainer::generate_domain()
 	{
 #ifdef NT_DEBUG
-		std::cout << "debug: generate_domain() start" << std::endl;
+		std::cout << "debug: generate_domain()" << std::endl;
 #endif
-		CB::Pendulum pend(test_count);  // destructor needed?
+		// variables
+		CB::Pendulum pend(test_count, init_d.theta, init_d.mass_p, init_d.length,
+			max_torque, max_force, init_d.mass_c, init_d.track_length);
 		return pend;
 	}
 
-	//
-	// generate_network: sub
+	////////////////////////////////////////
 	// generate a network, setup and return
-	//
-	// output:
-	// - output generally configured network
-	//
 	Network::Network Trainer::generate_network()
 	{
 #ifdef NT_DEBUG
-		std::cout << "debug: generate_network() start" << std::endl;
+		std::cout << "debug: generate_network()" << std::endl;
 #endif
 		Network::Network net;
 		net.ID_value = ID_next;
@@ -246,15 +264,12 @@ namespace Trainer
 		return net;
 	}
 
-	//
-	// generate_population: sub
-	// generate starting population
-	// fill pop_fitness with zeros
-	//
+	////////////////////////////////////////
+	// generate starting population with zero fitness
 	void Trainer::generate_population()
 	{
 #ifdef NT_DEBUG
-		std::cout << "debug: generate_population() start" << std::endl;
+		std::cout << "debug: generate_population()" << std::endl;
 #endif
 		population.clear();
 		pop_fitness.clear();
@@ -264,10 +279,17 @@ namespace Trainer
 		}
 	}
 
-	// cycle network with given inputs and return outputs
-	std::vector <double> Trainer::cycle_network(std::vector <double>& in_val, Network::Network& in_net) {
+	////////////////////////////////////////
+	// Processes an input vector through a neural network and returns the scaled output.
+	// This function takes an input vector and a network, cycles the input through the network
+	// to produce an output, and scales the output values based on predefined maximums.
+	// Includes debug and test checks for input/output size consistency.
+	std::vector <double> Trainer::cycle_network(
+		std::vector <double>& in_val,
+		Network::Network& in_net
+	) {
 #ifdef NT_DEBUG
-		std::cout << "debug: cycle_network() start" << std::endl;
+		std::cout << "debug: cycle_network()" << std::endl;
 #endif
 #ifdef NT_TEST
 		if (in_val.size() != input_layer_size) runtime_error = true; // ERROR - input size mismatch
@@ -285,28 +307,54 @@ namespace Trainer
 		return t_out;
 	}
 
+	////////////////////////////////////////
 	// cycle agent - domain for 'test_count' iterations
 	void Trainer::cycle() {
 #ifdef NT_DEBUG
-		std::cout << "debug: cycle() start" << std::endl;
+		std::cout << "debug: cycle()" << std::endl;
 #endif
 		for (std::size_t i = 0; i<test_count; ++i) {
 			get_state();
-			last_action = cycle_network(last_state, population.at(network_test_count));
-			give_action();
-			get_reward();
+			last_action = cycle_network(
+				last_state,
+				population.at(current_network));
+			cycle_domain();
+#ifdef NT_VERBOSE
+			// info
+			std::cout << "current round: " << current_round << std::endl;
+			std::cout << "current network: " << current_network << std::endl;
+			std::cout << "current test: " << i << std::endl;
+			// states
+			std::cout << "states: " << " ";
+			for (std::size_t i=0; i<last_state.size(); ++i)
+			{
+				std::cout << last_state.at(i) << " ";
+			}
+			std::cout << std::endl;
+			// actions
+			std::cout << "actions: " << " ";
+			for (std::size_t i=0; i<last_action.size(); ++i)
+			{
+				std::cout << last_action.at(i) << " ";
+			}
+			std::cout << std::endl;
+#endif
 		}
 	}
 
+	////////////////////////////////////////
 	// input: pop_fitness vector
-	// find average fitness for entire round
+	// find average fitness for all domain rounds
 	// find average fitness for each network
-	void Trainer::error_manager(std::vector <double>& in_fitness) {
+	void Trainer::error_manager() {
+#ifdef NT_DEBUG
+		std::cout << "debug: error_manager() start" << std::endl;
+#endif
 		// average fitness for each
 		std::vector <double> temp_avg_fitness_all;
 		double temp_best_fitness = HUGE_VAL; // for this round
-		for (std::size_t i=0; i<in_fitness.size(); ++i) {
-			temp_avg_fitness_all.push_back(in_fitness.at(i) / test_count);
+		for (std::size_t i=0; i<pop_fitness.size(); ++i) {
+			temp_avg_fitness_all.push_back(pop_fitness.at(i) / test_count);
 			// best fitness (overall)
 			if (temp_avg_fitness_all.at(i) < best_fitness) {
 				best_fitness = temp_avg_fitness_all.at(i);
@@ -321,7 +369,7 @@ namespace Trainer
 		last_best_fitness = temp_best_fitness;
 		if (current_round == 0) first_best_fitness = temp_best_fitness;
 		// add to fitness history
-		if (network_test_count == population_size-1) fitness_history.push_back(temp_avg_fitness_all);
+		if (current_network == population_size-1) fitness_history.push_back(temp_avg_fitness_all);
 		// total average fitness
 		double temp_avg_fitness = 0.0;
 		for (std::size_t i=0; i<temp_avg_fitness_all.size(); ++i) {
@@ -334,17 +382,23 @@ namespace Trainer
 		}
 	}
 
+	////////////////////////////////////////
+	// run best network and export states
 	void Trainer::run_best_network() {
+#ifdef NT_DEBUG
+		std::cout << "debug: run_best_network() start" << std::endl;
+#endif
 		domain = generate_domain();
 		for (std::size_t i = 0; i<test_count; ++i) {
 			get_state();
 			last_action = cycle_network(last_state, best_network);
-			give_action();
+			cycle_domain();
 		}
 		domain.export_all_states();
 
 		std::vector <std::vector <std::vector <double> > > data = best_network.export_weights();
 
+		/*
 		std::ofstream out("best_network.bin", std::ios_base::binary);
 		size_t X = data.size(), Y = X ? data[0].size() : 0, Z = Y ? data[0][0].size() : 0;
 		out.write(reinterpret_cast<const char*>(&X), sizeof(X));
@@ -355,77 +409,68 @@ namespace Trainer
 				out.write(reinterpret_cast<const char*>(middle.data()), Z * sizeof(double));
 			}
 		}
+		*/
 	}
 
-    //
-	// prune: main
-	// prune a population using binary selection
-	//
-	// input:
-	// - population to prune
-	// - population errors
-	// output:
-	// - pruned population
-	//
-    std::vector <Network::Network> Trainer::prune(std::vector <Network::Network>& in_pop, std::vector <double>& in_pop_error) {
+    ////////////////////////////////////////
+	// Prunes the population by selecting the fittest individuals.
+	// This function reduces the population size by half, comparing pairs of randomly
+	// selected networks based on their error values and keeping the one with the lower
+	// error, effectively implementing a tournament-style selection process.
+    void Trainer::prune() {
 #ifdef NT_DEBUG
-		std::cout << "debug: prune() start" << std::endl;
+		std::cout << "debug: prune()" << std::endl;
 #endif
 		int try_1;
 		int try_2;
 		std::vector <Network::Network> temp_new_pop;
-		for (std::size_t i = 0; i < in_pop.size() / 2; ++i)
+		for (std::size_t i = 0; i < population.size() / 2; ++i)
 		{
-			try_1 = rand() % in_pop.size();
-			try_2 = rand() % in_pop.size();
+			try_1 = rand() % population.size();
+			try_2 = rand() % population.size();
 			while (try_1 == try_2)
-				try_2 = rand() % in_pop.size();
-			if (in_pop_error.at(try_1) < in_pop_error.at(try_2))
-				temp_new_pop.push_back(in_pop.at(try_1));
+				try_2 = rand() % population.size();
+			if (pop_fitness.at(try_1) < pop_fitness.at(try_2))
+				temp_new_pop.push_back(population.at(try_1));
 			else
-				temp_new_pop.push_back(in_pop.at(try_2));
+				temp_new_pop.push_back(population.at(try_2));
 		}
-		return temp_new_pop;
+		population = temp_new_pop;
     }
 
-    //
-	// populate: main
-	// populate a population with mutations of the existing
-	//
-	// note: seperate network generation
-	// input:
-	// - population to populate
-	// - desired population size
-	// output:
-	// - populated population
-	//
-    std::vector <Network::Network> Trainer::populate(std::vector <Network::Network>& in_pop, unsigned int& in_pop_size) {
+    ////////////////////////////////////////
+	// Repopulates the given population to reach the desired size.
+	// This function takes an existing population of networks and adds new networks
+	// by duplicating random individuals, importing their weights, and applying mutations,
+	// ensuring the population size matches the specified target.
+    void Trainer::populate() {
 #ifdef NT_DEBUG
-		std::cout << "debug: populate() start" << std::endl;
+		std::cout << "debug: populate()" << std::endl;
 #endif
 		int copy_index;
 		Network::Network net;
-		std::vector <Network::Network> temp_new_pop = in_pop;
-		while (temp_new_pop.size() < in_pop_size)
+		std::vector <Network::Network> temp_new_pop = population;
+		while (temp_new_pop.size() < population_size)
 		{
-			copy_index = rand() % in_pop.size();
+			copy_index = rand() % population.size();
 			// generate a new network
 			net = generate_network();
 			// set to same weight as random
-			net.import_weights(in_pop.at(copy_index).export_weights());
+			net.import_weights(population.at(copy_index).export_weights());
 			net.mutate();
 			temp_new_pop.push_back(net);
 		}
-		return temp_new_pop;
+		population = temp_new_pop;
     }
 
-	//
-	// train: main
-	// main training loop
-	//
+	////////////////////////////////////////
+	// Trains the population of neural networks over multiple rounds.
+    // This function implements an evolutionary training loop, generating a population,
+    // evaluating fitness, pruning weak performers, repopulating, and tracking progress.
+    // It also measures execution time and exports results for analysis.
     void Trainer::train() {
 #ifdef NT_DEBUG
-		std::cout << "debug: train() start" << std::endl;
+		std::cout << "debug: train()" << std::endl;
 #endif
 		print_intro();
 		generate_population();
@@ -437,13 +482,15 @@ namespace Trainer
 #endif
 			for (std::size_t i=0; i<population_size; ++i)
 			{
-				network_test_count = i;
+				current_network = i;
 				domain = generate_domain();
 				cycle();
 			}
-			error_manager(pop_fitness);
-			population = prune(population, pop_fitness);
-            population = populate(population, population_size);
+			// finish training round
+			error_manager();
+			prune();
+            populate();
+			// progress
 			++current_round;
 			progress();
         }

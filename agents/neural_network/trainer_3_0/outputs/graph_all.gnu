@@ -22,6 +22,7 @@ set ylabel "fitness"
 set key off
 
 set xrange [1:*]
+unset yrange
 
 set terminal pngcairo size 1200,800
 
