@@ -6,8 +6,10 @@
 2. **Make smaller mutations, more often** (`chance=0.3 mod=0.1` instead of `0.1 / 0.2`)
 3. **Shrink the mutation size over the run** (annealing from `mod` to `mod/20`)
 
+These are now the trainer's defaults, so `./run 1` uses them. The original settings are still available:
+
 ```bash
-./run 1 hidden=8,8 chance=0.3 mod=0.1 anneal=1
+./run 1 hidden=8 chance=0.1 mod=0.2 anneal=0
 ```
 
 Elitism (keeping the best network every generation) also matters: turning it off makes results 1.5× worse. `trainer_3_0` doesn't use it yet.
@@ -21,7 +23,7 @@ Network size isn't the limit. Gradient descent on the *same* 1-8-1 network reach
 ## How this was tested
 
 - **Task:** fit `sin(x)` at 64 evenly spaced points on `[-π, π]`. The input is scaled to `x/π`, and the score is mean squared error (lower is better).
-- **Trainer:** `main.cpp` on this branch. It's the same evolutionary loop as `trainer_3_0` (evaluate, binary tournament to keep 50 of 100, refill with mutated copies), with the fitness reset bug fixed and elitism on by default.
+- **Trainer:** `main.cpp` on this branch. It's the same evolutionary loop as `trainer_3_0` (evaluate, binary tournament to keep 50 of 100, refill with mutated copies), with the fitness reset bug fixed and elitism on by default. Every configuration below starts from the original 1-8-1 baseline settings (`BASELINE` in `experiments.sh`).
 - **Each configuration** ran for 3,000 generations with a population of 100, for seeds 1–5. Runs are deterministic per seed. The baseline with seed 1 matches the committed `sine-trainer` result exactly (0.00288885).
 - **To reproduce everything:** `./experiments.sh` writes `outputs/experiments_summary.csv`, then `python plot.py` draws `outputs/experiments.svg`. The full sweep takes about 3.5 minutes with 22 parallel jobs.
 
@@ -38,7 +40,7 @@ Final best MSE over seeds 1–5, sorted from best to worst. "Gen to < 0.01" is t
 | anneal | `anneal=1` | 0.00209 | 0.00146–0.00461 | 1.9× better | 614 |
 | hidden16 | `hidden=16` | 0.00272 | 0.00157–0.00554 | 1.5× better | 389 |
 | gauss_anneal | `mut=gauss mod=0.3 anneal=1` | 0.00324 | 0.00132–0.00574 | 1.3× better | 492 |
-| baseline | defaults: 1-8-1, `chance=0.1 mod=0.2`, elite | 0.00405 | 0.00154–0.00609 | 1.0× | 536 |
+| baseline | original defaults: 1-8-1, `chance=0.1 mod=0.2`, elite | 0.00405 | 0.00154–0.00609 | 1.0× | 536 |
 | gauss | `mut=gauss mod=0.1` | 0.00511 | 0.00302–0.00546 | 1.3× worse | 514 |
 | pop200_gens1500 | `pop=200 gens=1500` | 0.00528 | 0.00146–0.00709 | 1.3× worse | 500 |
 | big_steps | `mod=0.5` | 0.00550 | 0.00130–0.00656 | 1.4× worse | 514 |
@@ -53,7 +55,7 @@ Final best MSE over seeds 1–5, sorted from best to worst. "Gen to < 0.01" is t
 | 20,000 epochs | **0.000038** | 951 | ~19 s per seed |
 
 <p align="center">
-  <img src="outputs/sine_fit.svg" width="49%" alt="Baseline fit, seed 1">
+  <img src="outputs/sine_fit_baseline.svg" width="49%" alt="Baseline fit, seed 1">
   <img src="outputs/sine_fit_combined.svg" width="49%" alt="Combined settings fit, seed 1">
 </p>
 
@@ -87,7 +89,7 @@ Without elitism, results are 1.5× worse and reaching 0.01 takes 60% more genera
 
 ## Recommendations, in order
 
-1. **Use the combined settings** (`hidden=8,8 chance=0.3 mod=0.1 anneal=1`) as the new defaults for the sine trainer. *Measured: 8.6×.*
+1. **Use the combined settings** (`hidden=8,8 chance=0.3 mod=0.1 anneal=1`) as the new defaults for the sine trainer. *Measured: 8.6×. Done: these are now the defaults in `main.cpp`. `experiments.sh` pins every config to the original baseline, so the table above still reproduces exactly.*
 2. **Add elitism to `trainer_3_0`** (cart balance). Here, removing elitism made results 1.5× worse, so `trainer_3_0` very likely loses progress the same way. *Not tested on cart balance.*
 3. **Try a gradient-based finishing step.** Gradient descent reaches about 100× lower error on the same network. Evolution is good at finding the right region and gradients are good at fine-tuning, so a hybrid would get the best of both: evolve for a few hundred generations, then fine-tune the best network with backprop. This needs a backward pass added to `Network`. Evolution is still the right tool for cart balance, which has no per-step target to compute gradients against. *Not built yet.*
 4. **Speed up `Network::cycle`.** Every forward pass allocates several `std::vector`s per layer. Training the 1-8-1 network does about 19 million forward passes in ~35 s, or about 1.8 µs each. Computing in place with pre-allocated buffers should be much faster, which would make deeper networks and longer runs cheaper. *Not measured.*

@@ -7,14 +7,14 @@
 //
 // usage: ./run [seed] [key=value ...]
 //   seed=N        random seed (default: time)
-//   hidden=8      hidden layer sizes, comma separated (e.g. hidden=8,8)
+//   hidden=8,8    hidden layer sizes, comma separated (e.g. hidden=8 for 1-8-1)
 //   pop=100       population size
 //   gens=3000     generations
-//   chance=0.1    chance per weight to mutate
-//   mod=0.2       mutation step size
+//   chance=0.3    chance per weight to mutate
+//   mod=0.1       mutation step size
 //   mut=net       net: Network::mutate (uniform difference)
 //                 gauss: Gaussian step with sigma = mod
-//   anneal=0      1: shrink mod from mod to mod/20 over the run
+//   anneal=1      1: shrink mod from mod to mod/20 over the run; 0: fixed
 //   elite=1       1: best network always survives
 //   out=outputs   output folder
 // outputs:
@@ -40,11 +40,13 @@
 static unsigned int POPULATION  = 100;
 static unsigned int GENERATIONS = 3000;
 static const unsigned int SAMPLES = 64;     // points on [-pi, pi]
-static std::vector <unsigned int> HIDDEN = {8};
-static double MUTATE_MOD        = 0.2;      // mutation step size
-static double MUTATE_CHANCE     = 0.1;      // chance per weight
+// defaults are the best settings from IMPROVEMENTS.md;
+// original defaults: hidden=8 chance=0.1 mod=0.2 anneal=0
+static std::vector <unsigned int> HIDDEN = {8, 8};
+static double MUTATE_MOD        = 0.1;      // mutation step size
+static double MUTATE_CHANCE     = 0.3;      // chance per weight
 static std::string MUTATION     = "net";    // net | gauss
-static bool ANNEAL              = false;
+static bool ANNEAL              = true;
 static bool KEEP_BEST           = true;     // elitism
 static std::string OUT          = "outputs";
 // -   END    -

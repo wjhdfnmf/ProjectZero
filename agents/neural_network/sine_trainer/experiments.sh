@@ -10,6 +10,11 @@ JOBS=${1:-$(nproc)}
 SEEDS="1 2 3 4 5"
 BASE=outputs/experiments
 
+# Every config starts from the ORIGINAL baseline below, then applies its own
+# settings (later settings override earlier ones). This keeps results identical
+# to IMPROVEMENTS.md even though main.cpp's defaults are now the combined settings.
+BASELINE="hidden=8 chance=0.1 mod=0.2 anneal=0"
+
 # name | settings      (each run uses the same total evaluations unless noted)
 CONFIGS=(
   "baseline|"
@@ -32,7 +37,7 @@ for c in "${CONFIGS[@]}"; do
   name=${c%%|*}; args=${c#*|}
   for s in $SEEDS; do
     mkdir -p "$BASE/${name}_s$s"
-    jobs+=("./run $s $args out=$BASE/${name}_s$s > $BASE/${name}_s$s/log.txt")
+    jobs+=("./run $s $BASELINE $args out=$BASE/${name}_s$s > $BASE/${name}_s$s/log.txt")
   done
 done
 printf '%s\n' "${jobs[@]}" | xargs -P "$JOBS" -I{} bash -c '{}'
