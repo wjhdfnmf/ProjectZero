@@ -1,2 +1,5 @@
 run
 run_test
+
+# Qt Creator per-user settings
+*.pro.user
