@@ -127,8 +127,11 @@ def plot_bench():
          [[float(r[k]) for k in keys] for r in rs], "passes / second", log=True)
 
 
-GROUP_TITLES = {"easy": "Easy mode, GA", "ga_hard": "Hard mode, GA (annealed mutation)",
-                "es_hard": "Hard mode, Evolution Strategies", "ga_hard_mem": "Hard mode, GA + memory"}
+GROUP_TITLES = {"easy": "Easy mode, GA",
+                "ga_hard20": "Hard mode, ship ±20 m, GA",
+                "ga_hard5": "Hard mode, GA",
+                "es_hard5": "Hard mode, Evolution Strategies",
+                "ga_hard5_mem": "Hard mode, GA + memory"}
 
 
 def plot_compare(names):
@@ -176,4 +179,4 @@ if __name__ == "__main__":
         plot_bench()
         for g in GROUP_TITLES:
             plot_sizes(g)
-        plot_compare(["ga_hard", "es_hard", "ga_hard_mem"])
+        plot_compare(["ga_hard5", "es_hard5", "ga_hard5_mem"])

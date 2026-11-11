@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="760" height="420" viewBox="0 0 760 420" font-family="sans-serif" font-size="12">
 <rect width="760" height="420" fill="white"/>
-<text x="380.0" y="28" font-size="16" font-weight="bold" text-anchor="middle">Easy mode: landings out of 1,000 new scenarios, by network size</text>
+<text x="380.0" y="28" font-size="16" font-weight="bold" text-anchor="middle">Easy mode, GA: % landed on 1,000 new scenarios</text>
 <text x="18" y="195.0" text-anchor="middle" transform="rotate(-90 18 195.0)">% landed</text>
 <line x1="80" y1="340.0" x2="740" y2="340.0" stroke="#eee"/>
 <text x="74" y="344.0" text-anchor="end">0</text>

@@ -1,0 +1,19 @@
+Booster Landing (HARD mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+network 10-128-128-2 (18178 weights)  population 1024  scenarios/gen 32  generations 2400  sigma 0.03 -> 0.005000  seed 1
+gen    0  best cost    89.54  median   133.66  best lands  0/32  (0.3s)
+gen  240  best cost   -22.76  median    14.88  best lands 30/32  (332.8s)
+gen  480  best cost   -28.64  median    -2.94  best lands 31/32  (687.6s)
+gen  720  best cost   -28.13  median   -13.66  best lands 30/32  (1042.0s)
+gen  960  best cost   -29.85  median   -14.07  best lands 32/32  (1400.2s)
+gen 1200  best cost   -30.21  median   -17.87  best lands 32/32  (1752.8s)
+gen 1440  best cost   -29.67  median   -22.35  best lands 32/32  (2099.0s)
+gen 1680  best cost   -30.24  median   -24.03  best lands 32/32  (2434.9s)
+gen 1920  best cost   -30.93  median   -24.92  best lands 32/32  (2758.2s)
+gen 2160  best cost   -31.45  median   -27.76  best lands 32/32  (3071.0s)
+gen 2400  best cost   -31.66  median   -29.33  best lands 32/32  (3382.9s)
+
+training: 3382.9s (1.409s per generation, 78675968 episodes)
+test on 1000 new scenarios: landed 963 (96.3%), crashed 35, tipped 2, out of bounds 0, timeout 0
+mean test cost -29.86, mean fuel used per landing 3461 kg
+GPU vs CPU reference: same outcome on 200/200, max landing-x difference 0.0772 m
+SUMMARY algo=ga mode=hard hist=0 net=10-128-128-2 params=18178 landed=963 test=1000 crashed=35 tipped=2 oob=0 timeout=0 cost=-29.862 fuel=3461.4 train_s=3382.9 cpu_match=200

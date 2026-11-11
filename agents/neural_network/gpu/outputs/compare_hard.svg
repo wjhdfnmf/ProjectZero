@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="420" viewBox="0 0 760 420" font-family="sans-serif" font-size="12">
+<rect width="760" height="420" fill="white"/>
+<text x="380.0" y="28" font-size="16" font-weight="bold" text-anchor="middle">Hard mode: median landings (%) over 3 seeds</text>
+<text x="18" y="195.0" text-anchor="middle" transform="rotate(-90 18 195.0)">% landed</text>
+<line x1="80" y1="340.0" x2="740" y2="340.0" stroke="#eee"/>
+<text x="74" y="344.0" text-anchor="end">0</text>
+<line x1="80" y1="282.0" x2="740" y2="282.0" stroke="#eee"/>
+<text x="74" y="286.0" text-anchor="end">21</text>
+<line x1="80" y1="224.0" x2="740" y2="224.0" stroke="#eee"/>
+<text x="74" y="228.0" text-anchor="end">43</text>
+<line x1="80" y1="166.0" x2="740" y2="166.0" stroke="#eee"/>
+<text x="74" y="170.0" text-anchor="end">64</text>
+<line x1="80" y1="108.0" x2="740" y2="108.0" stroke="#eee"/>
+<text x="74" y="112.0" text-anchor="end">85</text>
+<line x1="80" y1="50.0" x2="740" y2="50.0" stroke="#eee"/>
+<text x="74" y="54.0" text-anchor="end">107</text>
+<rect x="102.0" y="84.2" width="56.7" height="255.8" fill="#bdbdbd"/>
+<text x="131.3" y="81.2" text-anchor="middle" font-size="9">94.2</text>
+<text x="190.0" y="356" text-anchor="middle">hidden 8</text>
+<rect x="322.0" y="80.7" width="56.7" height="259.3" fill="#bdbdbd"/>
+<text x="351.3" y="77.7" text-anchor="middle" font-size="9">95.5</text>
+<rect x="380.7" y="137.2" width="56.7" height="202.8" fill="#74a9cf"/>
+<text x="410.0" y="134.2" text-anchor="middle" font-size="9">74.7</text>
+<rect x="439.3" y="84.8" width="56.7" height="255.2" fill="#0570b0"/>
+<text x="468.7" y="81.8" text-anchor="middle" font-size="9">94.0</text>
+<text x="410.0" y="356" text-anchor="middle">hidden 64x64</text>
+<rect x="542.0" y="76.4" width="56.7" height="263.6" fill="#bdbdbd"/>
+<text x="571.3" y="73.4" text-anchor="middle" font-size="9">97.1</text>
+<text x="630.0" y="356" text-anchor="middle">hidden 128x128</text>
+<rect x="80" y="390" width="14" height="14" fill="#bdbdbd"/>
+<text x="100" y="401">GA</text>
+<rect x="250" y="390" width="14" height="14" fill="#74a9cf"/>
+<text x="270" y="401">Evolution Strategies</text>
+<rect x="420" y="390" width="14" height="14" fill="#0570b0"/>
+<text x="440" y="401">GA + memory</text>
+<line x1="80" y1="340" x2="740" y2="340" stroke="#333"/>
+</svg>

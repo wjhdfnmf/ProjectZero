@@ -12,6 +12,7 @@
 //
 // usage: rocket.exe [key=value ...]
 //   mode=easy      easy | hard (drone ship, 40% minimum throttle, engine lag, stronger wind)
+//   ship=5         hard mode: max drone-ship sway in m (20 = the first, unrealistic version)
 //   algo=ga        ga | es
 //   hidden=64,64   hidden layer sizes
 //   hist=0         1: network also sees the previous observation and command (short-term memory)
@@ -108,7 +109,9 @@ State episode_cpu(const Topology& t, const float* p, const Scenario& sc, const r
 	return st;
 }
 
-bool g_hard = false;  // set from mode=hard
+bool g_hard = false;      // set from mode=hard
+float g_ship_amp = 5.0f;  // hard mode: max drone-ship sway (m), set from ship=
+                          // (ship=20 was the first, unrealistic version: deck up to 15.7 m/s)
 
 std::vector<Scenario> make_scenarios(int n, uint32_t seed) {
 	std::mt19937 r(seed);
@@ -123,7 +126,7 @@ std::vector<Scenario> make_scenarios(int n, uint32_t seed) {
 		s.ship_amp = 0.0f; s.ship_w = 0.0f; s.ship_phase = 0.0f;
 		if (g_hard) {  // drawn after the easy values, so easy scenarios are unchanged
 			s.wind = U(-20, 20); s.gust_amp = U(0, 12);
-			s.ship_amp = U(0, 20); s.ship_w = 6.2832f / U(8, 14); s.ship_phase = U(0, 6.2832f);
+			s.ship_amp = U(0, 1) * g_ship_amp; s.ship_w = 6.2832f / U(8, 14); s.ship_phase = U(0, 6.2832f);
 		}
 	}
 	return v;
@@ -215,6 +218,7 @@ int main(int argc, char** argv) {
 		else if (k == "test") n_test = std::stoi(v);
 		else if (k == "out") out = v;
 		else if (k == "mode") g_hard = (v == "hard");
+		else if (k == "ship") g_ship_amp = std::stof(v);
 		else if (k == "algo") algo = v;
 		else if (k == "hist") hist = std::stoi(v);
 		else if (k == "pairs") ecfg.pairs = std::stoi(v);
@@ -236,7 +240,8 @@ int main(int argc, char** argv) {
 	const int pop_n = es ? 2 * ecfg.pairs : cfg.pop;
 
 	cudaDeviceProp prop; CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
-	printf("Booster Landing (%s mode) - GPU %s on %s\n", P.hard ? "HARD" : "easy",
+	printf("Booster Landing (%s mode%s) - GPU %s on %s\n", P.hard ? "HARD" : "easy",
+	       P.hard ? (", ship sway up to " + std::to_string((int)g_ship_amp) + " m").c_str() : "",
 	       es ? "Evolution Strategies" : "genetic algorithm", prop.name);
 	if (es)
 		printf("network %s (%d weights)%s  pairs %d (population %d)  scenarios/gen %d  generations %d  sigma %g  lr %g%s  wd %g  seed %u\n",

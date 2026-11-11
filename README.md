@@ -21,6 +21,7 @@ A **trainer** sits on top of that loop. It runs a population of agents through t
 - **Neural network** (`agents/neural_network/network/neural_network.h`): a feed-forward network built from `Node` → `Layer` → `Network`, with configurable nodes per layer, weight mutation and weight import/export. See the [deep dive](#deep-dive-the-neural-network-agent) below.
 - **Network trainer v3.0** (`agents/neural_network/trainer_3_0/`): an evolutionary trainer that evolves a population of 100 networks on the cart-balance domain. It logs fitness history, replays the best network, and plots the results with gnuplot.
 - **Q-learner** (`agents/q_learner/`): a tabular Q-learning agent for the grid domain (work in progress).
+- **GPU neural network v4** (`agents/neural_network/gpu/`): a CUDA rewrite that evolves whole populations of networks on the GPU, about 16,000× faster than v3 for a 4,866-weight network. It trains a booster to land on a moving drone ship (94–97% of unseen flights). See its [REPORT.md](agents/neural_network/gpu/REPORT.md) and [PROBLEM.md](agents/neural_network/gpu/PROBLEM.md).
 - Older trainer and network versions are kept in `_complete/` and `_outdated/`.
 
 ### Domains (`domains/`)

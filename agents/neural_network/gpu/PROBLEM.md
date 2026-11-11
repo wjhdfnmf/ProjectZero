@@ -36,7 +36,7 @@ Everything below is defined in [`rocket.cuh`](rocket.cuh) (physics, sensors, com
 | Propellant | 4,000–7,000 kg |
 | Steady wind | ±15 m/s (easy) / ±20 m/s (hard) |
 | Gusts | sine-wave gusts of up to 8 m/s (easy) / 12 m/s (hard), period 6–31 s |
-| Drone ship (hard mode only) | pad sways sideways up to ±20 m with an 8–14 s period |
+| Drone ship (hard mode only) | pad sways sideways up to ±5 m (`ship=5`, the default) with an 8–14 s period: deck speed up to 3.9 m/s, acceleration up to 3.1 m/s² |
 
 The rocket **cannot sense the wind**. It only sees its effect, as drift.
 
@@ -99,18 +99,20 @@ The cost is **graded**, so evolution gets a signal from the very first, terrible
 - **Training:** every generation flies a fresh batch of 16–32 random scenarios. A network's score is its average cost over the batch.
 - **Choosing the final network:** the best candidates are re-flown on **500 validation scenarios**, a fixed set never used for training, and the best one is kept.
 - **Final test:** the chosen network flies **1,000 test scenarios** it has never seen, from a third, separate random seed. The **landing rate on this test set** is the headline number in the report.
-- **Cross-check:** the first 200 test flights are re-flown on the CPU with a completely separate implementation of the network. Every reported run matched the GPU on all 200 outcomes.
+- **Cross-check:** the first 200 test flights are re-flown on the CPU with a separate implementation of the network. Every reported run matched the GPU on all 200 outcomes except one, at 199/200. The GPU uses fused multiply-add and its own `tanhf`, so tiny rounding differences can grow over a 50-second flight and flip a borderline landing.
 
 ## 7. Easy vs hard mode
 
 | | Easy | Hard |
 |---|---|---|
-| Landing pad | Fixed | Drone ship, sways ±20 m |
+| Landing pad | Fixed | Drone ship, sways up to ±5 m |
 | Throttle | 0–100%, instant | Off or 40–100%, 0.3 s lag → can't hover |
 | Wind | ±15 m/s + 8 m/s gusts | ±20 m/s + 12 m/s gusts |
 | What a good network does | Free-falls, brakes hard, then descends slowly to the pad | Has to time one braking burn precisely while tracking a moving target |
 
 Easy mode turned out to be solvable by a tiny 90-weight network (99.5–100% landings), so hard mode was added to give larger networks something to win at.
+
+**A correction made overnight:** the first version of hard mode swayed the ship up to ±20 m (`ship=20`). That's a deck moving at up to 15.7 m/s and accelerating at up to 12 m/s², far beyond a real drone ship. 75% of that version's crashes were gentle touchdowns on the pad that were still sliding sideways relative to the deck, so it measured luck more than skill. The default is now ±5 m. The `ship=20` results are kept in the report as a lesson.
 
 ## 8. Simplifications to be aware of
 
