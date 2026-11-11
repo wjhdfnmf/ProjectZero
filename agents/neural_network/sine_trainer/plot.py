@@ -108,6 +108,42 @@ def plot_fit():
     c.save("sine_fit.svg")
 
 
+EXPERIMENTS = [  # (config, color, label) drawn by plot_experiments
+    ("no_elite", "#bdbdbd", "no elitism"),
+    ("baseline", "#222222", "baseline"),
+    ("anneal", "#fd8d3c", "anneal"),
+    ("small_steps_often", "#41ab5d", "chance .3 mod .1"),
+    ("deep8x8", "#4292c6", "1-8-8-1"),
+    ("combo_anneal", "#d7301f", "combined"),
+]
+
+
+def plot_experiments():
+    """Median (over seeds) best-MSE curve for each configuration in EXPERIMENTS."""
+    base = OUT / "experiments"
+    curves = {}
+    for name, _, _ in EXPERIMENTS:
+        runs = sorted(base.glob(f"{name}_s*/fitness.csv"))
+        if not runs:
+            continue
+        cols = [[float(r["best_mse"]) for r in csv.DictReader(open(f, newline=""))] for f in runs]
+        n = min(len(c) for c in cols)
+        curves[name] = [sorted(c[i] for c in cols)[len(cols) // 2] for i in range(n)]
+    if not curves:
+        return
+    gens = max(len(c) for c in curves.values()) - 1
+    lo = 10 ** math.floor(math.log10(min(min(c) for c in curves.values())))
+    hi = 10 ** math.ceil(math.log10(max(max(c) for c in curves.values())))
+    c = Chart("Best MSE, median of 5 seeds", "generation", "mean squared error (log)", (0, gens), (lo, hi), ylog=True)
+    c.axes(range(0, gens + 1, max(1, gens // 6)), [10 ** e for e in range(int(math.log10(lo)), int(math.log10(hi)) + 1)], "{:.0e}")
+    for name, color, label in EXPERIMENTS:
+        if name in curves:
+            ys = curves[name]
+            c.line(range(len(ys)), ys, color, label, 3 if name == "combo_anneal" else 2)
+    c.save("experiments.svg")
+
+
 if __name__ == "__main__":
     plot_fitness()
     plot_fit()
+    plot_experiments()

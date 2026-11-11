@@ -6,13 +6,16 @@ Evolves the v3.0 neural network (`../network/neural_network.h`) to approximate `
 - **Fitness:** mean squared error over 64 evenly spaced points (lower is better).
 - **Evolution:** population of 100 for 3,000 generations, mutation chance 0.1 per weight, step up to ±0.2. The best network always survives to the next generation (`KEEP_BEST`).
 
-All settings are at the top of `main.cpp`.
+Defaults are at the top of `main.cpp`. You can override any of them on the command line: `seed`, `hidden` (e.g. `8,8`), `pop`, `gens`, `chance`, `mod`, `mut` (`net` or `gauss`), `anneal`, `elite` and `out`.
 
 ```bash
 make
-./run 1            # optional seed for repeatable runs
+./run 1                                            # seed 1, default settings
+./run 1 hidden=8,8 chance=0.3 mod=0.1 anneal=1     # best settings found (8.6x lower error)
 python plot.py     # writes outputs/fitness.svg and outputs/sine_fit.svg (standard library only)
 ```
+
+**[IMPROVEMENTS.md](IMPROVEMENTS.md)** compares 13 configurations over 5 seeds each, plus a gradient descent baseline. To rerun it, use `./experiments.sh` and `python plot.py`; for the baseline, `python backprop_baseline.py`.
 
 Outputs, all in `outputs/`:
 

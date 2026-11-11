@@ -5,8 +5,19 @@
 // using the same evolutionary loop as trainer_3_0:
 //   evaluate -> tournament prune -> populate with mutated copies
 //
-// usage: ./run [seed]
-// outputs (./outputs):
+// usage: ./run [seed] [key=value ...]
+//   seed=N        random seed (default: time)
+//   hidden=8      hidden layer sizes, comma separated (e.g. hidden=8,8)
+//   pop=100       population size
+//   gens=3000     generations
+//   chance=0.1    chance per weight to mutate
+//   mod=0.2       mutation step size
+//   mut=net       net: Network::mutate (uniform difference)
+//                 gauss: Gaussian step with sigma = mod
+//   anneal=0      1: shrink mod from mod to mod/20 over the run
+//   elite=1       1: best network always survives
+//   out=outputs   output folder
+// outputs:
 //   fitness.csv     generation, best_mse, avg_mse
 //   snapshots.csv   generation, x, target, prediction   (best network at chosen generations)
 //   weights.txt     final best network weights
@@ -20,22 +31,29 @@
 #include <cstdlib>
 #include <ctime>
 #include <string>
+#include <sstream>
+#include <random>
 
 #include "../network/neural_network.h"
 
-// - SETTINGS -
-static const unsigned int POPULATION    = 100;
-static const unsigned int GENERATIONS   = 3000;
-static const unsigned int SAMPLES       = 64;     // points on [-pi, pi]
-static const unsigned int HIDDEN        = 8;      // hidden layer nodes
-static double MUTATE_MOD                = 0.2;    // max mutation step
-static double MUTATE_CHANCE             = 0.1;    // chance per weight
-static const bool KEEP_BEST             = true;   // elitism: best network always survives
-// generations to record the best network's curve
-static const unsigned int SNAPSHOTS[]   = {0, 10, 50, 200, 1000, GENERATIONS};
+// - SETTINGS (defaults, override with key=value) -
+static unsigned int POPULATION  = 100;
+static unsigned int GENERATIONS = 3000;
+static const unsigned int SAMPLES = 64;     // points on [-pi, pi]
+static std::vector <unsigned int> HIDDEN = {8};
+static double MUTATE_MOD        = 0.2;      // mutation step size
+static double MUTATE_CHANCE     = 0.1;      // chance per weight
+static std::string MUTATION     = "net";    // net | gauss
+static bool ANNEAL              = false;
+static bool KEEP_BEST           = true;     // elitism
+static std::string OUT          = "outputs";
 // -   END    -
 
+typedef std::vector <std::vector <std::vector <double> > > Weights;
+
 struct Sample { double x; double input; double target; };
+
+std::mt19937 rng;
 
 std::vector <Sample> make_samples() {
 	std::vector <Sample> s;
@@ -63,30 +81,82 @@ double evaluate(Network::Network& net, const std::vector <Sample>& samples) {
 }
 
 Network::Network make_network() {
-	std::vector <unsigned int> npl = {1, HIDDEN, 1};
+	std::vector <unsigned int> npl = {1};
+	npl.insert(npl.end(), HIDDEN.begin(), HIDDEN.end());
+	npl.push_back(1);
 	Network::Network net;
 	net.run_type = 1;  // quiet setup
 	net.setup(npl, MUTATE_MOD, MUTATE_CHANCE);
 	return net;
 }
 
-int main(int argc, char** argv) {
-	unsigned int seed = (argc > 1) ? (unsigned int)std::atoi(argv[1]) : (unsigned int)time(0);
-	srand(seed);
+// mutate a copy; 'mod' may be annealed
+void mutate(Network::Network& net, double mod) {
+	if (MUTATION == "net" && !ANNEAL) { net.mutate(); return; }
+	std::uniform_real_distribution <double> u(0.0, 1.0);
+	std::normal_distribution <double> g(0.0, 1.0);
+	Weights w = net.export_weights();
+	for (auto& layer : w)
+		for (auto& node : layer)
+			for (double& v : node)
+				if (u(rng) < MUTATE_CHANCE) {
+					if (MUTATION == "gauss") v += g(rng) * mod;
+					else v += u(rng)*mod - u(rng)*mod;  // same shape as Network::mutate
+				}
+	net.import_weights(w);
+}
 
+bool parse_args(int argc, char** argv, unsigned int& seed) {
+	for (int i=1; i<argc; ++i) {
+		std::string a = argv[i];
+		std::size_t eq = a.find('=');
+		if (eq == std::string::npos) { seed = (unsigned int)std::stoul(a); continue; }
+		std::string k = a.substr(0, eq), v = a.substr(eq+1);
+		if (k == "seed") seed = (unsigned int)std::stoul(v);
+		else if (k == "pop") POPULATION = std::stoul(v);
+		else if (k == "gens") GENERATIONS = std::stoul(v);
+		else if (k == "chance") MUTATE_CHANCE = std::stod(v);
+		else if (k == "mod") MUTATE_MOD = std::stod(v);
+		else if (k == "mut") MUTATION = v;
+		else if (k == "anneal") ANNEAL = (v == "1");
+		else if (k == "elite") KEEP_BEST = (v == "1");
+		else if (k == "out") OUT = v;
+		else if (k == "hidden") {
+			HIDDEN.clear();
+			std::stringstream ss(v); std::string t;
+			while (std::getline(ss, t, ',')) HIDDEN.push_back(std::stoul(t));
+		}
+		else { std::cerr << "unknown setting: " << k << std::endl; return false; }
+	}
+	return true;
+}
+
+int main(int argc, char** argv) {
+	unsigned int seed = (unsigned int)time(0);
+	if (!parse_args(argc, argv, seed)) return 1;
+	srand(seed);
+	rng.seed(seed);
+
+	std::string shape = "1";
+	for (unsigned int h : HIDDEN) shape += "-" + std::to_string(h);
+	shape += "-1";
 	std::cout << "Sine Wave Trainer - Neural Network v3.0" << std::endl;
-	std::cout << "network: 1-" << HIDDEN << "-1  population: " << POPULATION
-		<< "  generations: " << GENERATIONS << "  seed: " << seed << std::endl;
+	std::cout << "network: " << shape << "  population: " << POPULATION
+		<< "  generations: " << GENERATIONS << "  seed: " << seed
+		<< "  mutation: " << MUTATION << (ANNEAL ? "+anneal" : "")
+		<< " chance " << MUTATE_CHANCE << " mod " << MUTATE_MOD
+		<< "  elite: " << KEEP_BEST << std::endl;
 
 	std::vector <Sample> samples = make_samples();
+	std::vector <unsigned int> snapshots = {0, 10, 50, 200, 1000, GENERATIONS};
 
 	std::vector <Network::Network> pop;
 	for (unsigned int i=0; i<POPULATION; ++i) pop.push_back(make_network());
 
-	std::ofstream f_fit("outputs/fitness.csv");
-	std::ofstream f_snap("outputs/snapshots.csv");
+	std::ofstream f_fit(OUT + "/fitness.csv");
+	std::ofstream f_snap(OUT + "/snapshots.csv");
 	if (!f_fit.is_open() || !f_snap.is_open()) {
-		std::cerr << "ERROR: could not open outputs/ for writing (run from sine_trainer/)" << std::endl;
+		std::cerr << "ERROR: could not open " << OUT << "/ for writing" << std::endl;
 		return 1;
 	}
 	f_fit << "generation,best_mse,avg_mse\n";
@@ -113,7 +183,7 @@ int main(int argc, char** argv) {
 		f_fit << gen << "," << err.at(gen_best) << "," << sum/pop.size() << "\n";
 
 		// snapshot of this generation's best network
-		if (std::find(std::begin(SNAPSHOTS), std::end(SNAPSHOTS), gen) != std::end(SNAPSHOTS)) {
+		if (std::find(snapshots.begin(), snapshots.end(), gen) != snapshots.end()) {
 			for (const Sample& s : samples)
 				f_snap << gen << "," << s.x << "," << s.target << ","
 					<< predict(pop.at(gen_best), s.input) << "\n";
@@ -133,17 +203,19 @@ int main(int argc, char** argv) {
 		}
 
 		// 3. populate: mutated copies of random survivors
+		double mod = MUTATE_MOD;
+		if (ANNEAL) mod = MUTATE_MOD * std::pow(0.05, (double)gen / GENERATIONS);
 		pop = survivors;
 		while (pop.size() < POPULATION) {
 			Network::Network child = survivors.at(rand() % survivors.size());
-			child.mutate();
+			mutate(child, mod);
 			pop.push_back(child);
 		}
 	}
 
 	// final best network weights
-	std::ofstream f_w("outputs/weights.txt");
-	std::vector <std::vector <std::vector <double> > > w = best.export_weights();
+	std::ofstream f_w(OUT + "/weights.txt");
+	Weights w = best.export_weights();
 	for (std::size_t l=0; l<w.size(); ++l)
 		for (std::size_t n=0; n<w.at(l).size(); ++n) {
 			f_w << "layer " << l << " node " << n << ":";

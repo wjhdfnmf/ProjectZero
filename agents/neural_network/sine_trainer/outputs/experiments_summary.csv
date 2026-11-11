@@ -1,0 +1,66 @@
+config,settings,seed,best_mse,gen_below_0.01,seconds
+baseline,"",1,0.00288885,536,88.0023
+baseline,"",2,0.00153585,463,80.9542
+baseline,"",3,0.00404783,445,72.244
+baseline,"",4,0.00609001,814,79.2745
+baseline,"",5,0.00528287,730,51.0441
+no_elite,"elite=0",1,0.00625517,878,82.4363
+no_elite,"elite=0",2,0.0059649,866,46.914
+no_elite,"elite=0",3,0.00413927,851,82.8016
+no_elite,"elite=0",4,0.00595008,815,73.1481
+no_elite,"elite=0",5,0.00532773,874,46.9292
+hidden4,"hidden=4",1,0.00402517,872,29.6066
+hidden4,"hidden=4",2,0.00551248,702,56.256
+hidden4,"hidden=4",3,0.00381591,425,55.7895
+hidden4,"hidden=4",4,0.00727541,1255,49.1082
+hidden4,"hidden=4",5,0.00672061,1176,50.4342
+hidden16,"hidden=16",1,0.00272417,294,83.1335
+hidden16,"hidden=16",2,0.00493687,389,91.9611
+hidden16,"hidden=16",3,0.00157013,426,83.2999
+hidden16,"hidden=16",4,0.00553598,334,120.395
+hidden16,"hidden=16",5,0.00200075,391,110.17
+deep8x8,"hidden=8,8",1,0.00178847,315,102.687
+deep8x8,"hidden=8,8",2,0.000548614,185,145.632
+deep8x8,"hidden=8,8",3,0.00058064,201,101.424
+deep8x8,"hidden=8,8",4,0.000809644,317,144.088
+deep8x8,"hidden=8,8",5,0.000871647,226,101.252
+small_steps_often,"chance=0.3 mod=0.1",1,0.00118671,428,67.2466
+small_steps_often,"chance=0.3 mod=0.1",2,0.00418879,482,46.0779
+small_steps_often,"chance=0.3 mod=0.1",3,0.000808552,300,48.1629
+small_steps_often,"chance=0.3 mod=0.1",4,0.000969214,388,68.0996
+small_steps_often,"chance=0.3 mod=0.1",5,0.00173506,464,56.8747
+big_steps,"mod=0.5",1,0.00130207,353,53.5843
+big_steps,"mod=0.5",2,0.00559173,565,58.1318
+big_steps,"mod=0.5",3,0.00216837,373,50.6023
+big_steps,"mod=0.5",4,0.00656322,536,46.6683
+big_steps,"mod=0.5",5,0.00549566,514,55.8308
+gauss,"mut=gauss mod=0.1",1,0.00494813,514,52.2186
+gauss,"mut=gauss mod=0.1",2,0.00511127,481,55.0024
+gauss,"mut=gauss mod=0.1",3,0.00302421,424,54.7012
+gauss,"mut=gauss mod=0.1",4,0.00510604,638,62.1723
+gauss,"mut=gauss mod=0.1",5,0.0054589,558,53.2353
+anneal,"anneal=1",1,0.0031068,630,46.863
+anneal,"anneal=1",2,0.00209066,738,66.9386
+anneal,"anneal=1",3,0.00199532,459,50.2304
+anneal,"anneal=1",4,0.00146126,513,53.4177
+anneal,"anneal=1",5,0.00460918,614,50.3317
+gauss_anneal,"mut=gauss mod=0.3 anneal=1",1,0.0032438,539,51.0726
+gauss_anneal,"mut=gauss mod=0.3 anneal=1",2,0.00574047,498,55.3426
+gauss_anneal,"mut=gauss mod=0.3 anneal=1",3,0.00132192,299,69.6893
+gauss_anneal,"mut=gauss mod=0.3 anneal=1",4,0.00408244,492,68.1944
+gauss_anneal,"mut=gauss mod=0.3 anneal=1",5,0.00136262,228,56.6271
+pop200_gens1500,"pop=200 gens=1500",1,0.00708658,737,49.0662
+pop200_gens1500,"pop=200 gens=1500",2,0.00503155,500,47.0707
+pop200_gens1500,"pop=200 gens=1500",3,0.00614175,579,65.2746
+pop200_gens1500,"pop=200 gens=1500",4,0.00528352,494,47.5578
+pop200_gens1500,"pop=200 gens=1500",5,0.00145826,399,64.9553
+combo,"hidden=8,8 chance=0.3 mod=0.1",1,0.000546187,188,99.0137
+combo,"hidden=8,8 chance=0.3 mod=0.1",2,0.000512224,233,117.622
+combo,"hidden=8,8 chance=0.3 mod=0.1",3,0.000601524,162,116.29
+combo,"hidden=8,8 chance=0.3 mod=0.1",4,0.000802583,296,98.768
+combo,"hidden=8,8 chance=0.3 mod=0.1",5,0.000676196,262,114.617
+combo_anneal,"hidden=8,8 chance=0.3 mod=0.1 anneal=1",1,0.000570635,190,101.711
+combo_anneal,"hidden=8,8 chance=0.3 mod=0.1 anneal=1",2,0.000388258,274,114.072
+combo_anneal,"hidden=8,8 chance=0.3 mod=0.1 anneal=1",3,0.000437735,183,109.585
+combo_anneal,"hidden=8,8 chance=0.3 mod=0.1 anneal=1",4,0.000575494,522,98.6756
+combo_anneal,"hidden=8,8 chance=0.3 mod=0.1 anneal=1",5,0.000473751,213,98.1399
