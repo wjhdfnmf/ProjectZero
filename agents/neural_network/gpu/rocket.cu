@@ -370,17 +370,38 @@ int main(int argc, char** argv) {
 	std::unique_ptr<EvolutionStrategy> ess;
 	if (es) ess.reset(new EvolutionStrategy(t, ecfg)); else ga.reset(new Population(t, cfg));
 
-	// init=<weights.txt>: start from a trained network (ES: theta = it; GA: every member = it)
+	// init=<weights.txt>: start from a trained network (ES: theta = it; GA: every member = it).
+	// Transfer learning: the file's network may have FEWER inputs (e.g. a hard-mode
+	// network, 10 inputs, into real mode, 12 inputs) as long as the rest of its shape
+	// matches. The extra inputs get zero weights, so the network starts out behaving
+	// exactly as it did before; training then learns to use them.
 	if (!init_file.empty()) {
 		std::ifstream f(init_file);
 		std::string header;
 		if (!f || !std::getline(f, header)) { fprintf(stderr, "cannot read %s\n", init_file.c_str()); return 1; }
-		if (header.substr(0, header.find(' ')) != describe(t)) {
-			fprintf(stderr, "%s holds a %s network, but this run is %s\n", init_file.c_str(), header.c_str(), describe(t).c_str());
+		const std::string shape = header.substr(0, header.find(' '));
+		std::vector<int> old_sizes;
+		{ std::stringstream ss(shape); std::string x; while (std::getline(ss, x, '-')) old_sizes.push_back(std::stoi(x)); }
+		bool ok = old_sizes.size() == (size_t)t.n_layers + 1 && old_sizes[0] <= t.size[0];
+		for (int l = 1; ok && l <= t.n_layers; ++l) ok = old_sizes[l] == t.size[l];
+		if (!ok) {
+			fprintf(stderr, "%s holds a %s network; this run is %s (only the input count may grow)\n",
+			        init_file.c_str(), shape.c_str(), describe(t).c_str());
 			return 1;
 		}
-		std::vector<float> w0(t.n_params);
-		for (float& v : w0) if (!(f >> v)) { fprintf(stderr, "%s: too few weights\n", init_file.c_str()); return 1; }
+		const Topology ot = make_topology(old_sizes);
+		std::vector<float> wold(ot.n_params);
+		for (float& v : wold) if (!(f >> v)) { fprintf(stderr, "%s: too few weights\n", init_file.c_str()); return 1; }
+		std::vector<float> w0(t.n_params, 0.0f);
+		for (int l = 0; l < t.n_layers; ++l) {
+			const int in_old = ot.size[l], out = t.size[l + 1];
+			for (int k = 0; k < in_old; ++k)
+				for (int j = 0; j < out; ++j) w0[t.w_off[l] + k * out + j] = wold[ot.w_off[l] + k * out + j];
+			for (int j = 0; j < out; ++j) w0[t.b_off[l] + j] = wold[ot.b_off[l] + j];
+		}
+		if (ot.size[0] < t.size[0])
+			printf("transfer: %s -> %s (%d new inputs start with zero weight)\n", shape.c_str(), describe(t).c_str(),
+			       t.size[0] - ot.size[0]);
 		if (es) {
 			CUDA_CHECK(cudaMemcpy(ess->d_theta, w0.data(), t.n_params * sizeof(float), cudaMemcpyHostToDevice));
 		} else {

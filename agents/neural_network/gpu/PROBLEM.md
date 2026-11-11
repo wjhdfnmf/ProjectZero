@@ -114,13 +114,35 @@ Easy mode turned out to be solvable by a tiny 90-weight network (99.5–100% lan
 
 **A correction made overnight:** the first version of hard mode swayed the ship up to ±20 m (`ship=20`). That's a deck moving at up to 15.7 m/s and accelerating at up to 12 m/s², far beyond a real drone ship. 75% of that version's crashes were gentle touchdowns on the pad that were still sliding sideways relative to the deck, so it measured luck more than skill. The default is now ±5 m. The `ship=20` results are kept in the report as a lesson.
 
-## 8. Simplifications to be aware of
+## 8. Real mode (`mode=real`, added day 2)
+
+The overnight flagship found two weaknesses in hard mode:
+- **It relit the engine 35–115 times per flight** to fake a hover. Measured on the old hard-mode models, that's an average of 60 starts per flight.
+- **The score rewarded saving propellant almost as much as landing.**
+
+Real mode is hard mode plus five changes. Each one has a setting, so their effects can be measured separately:
+
+| Change | Setting (real-mode default) | Details |
+|---|---|---|
+| **Limited engine starts** | `ignitions=3` | The engine can be lit at most 3 times per flight. Once they're used up, it stays off. The network sees how many starts it has left. This forces a genuine **single-burn hoverslam**, or at most a couple of corrections. |
+| **Safety-first score** | `score=1` | Landing bonus 60, up from 30; propellant bonus at most 5, down from 10; any crash costs an extra 20. A safe landing now clearly outweighs any fuel saving. |
+| **Sensor noise** | `noise=1` | Gaussian noise roughly matching GNSS + IMU fusion: position ±2 m, altitude ±1 m, velocities ±0.3 m/s, tilt and rotation ±0.005, propellant ±14 kg, deck motion ±0.1 / ±0.05 m/s. The engine's own state (throttle, starts left) is known exactly. |
+| **Sensor delay** | `delay=2` | Sensor readings arrive 2 steps (0.1 s) late. |
+| **Deck heave** | `heave=1.5` | The deck also moves up and down, by up to ±1.5 m over a 6–10 s period. Touchdown happens when the rocket reaches the *moving* deck, and the 3 m/s limit applies to vertical speed relative to the deck. The network sees altitude and vertical speed relative to the deck, plus the deck's vertical speed. |
+
+**Inputs in real mode (12):** the 10 hard-mode inputs, with altitude and vertical speed now relative to the deck, plus engine starts left and the deck's vertical speed.
+
+The noise is drawn from a hash of (scenario, step, sensor), so a flight is exactly repeatable, and the CPU reference sees the same noise as the GPU.
+
+## 9. Simplifications to be aware of
 
 - **2D only:** no out-of-plane motion and no roll.
 - **Simple aerodynamics:** drag acts on the rocket's center with one coefficient. There are no grid fins, no aerodynamic torque and no lift.
 - **No landing legs or touchdown dynamics:** landing is judged at the instant the rocket reaches the deck.
 - **The drone ship only sways sideways.** The deck doesn't heave or pitch.
-- **Perfect sensors:** no noise and no delay, apart from the engine's lag. The wind is unobserved.
-- **Unlimited engine relights,** although each one goes through the 40% minimum and the spin-up lag.
+- **Perfect sensors** in easy and hard mode: no noise and no delay, apart from the engine's lag. Real mode adds both. The wind is never observed.
+- **Unlimited engine relights** in easy and hard mode. Real mode limits them to 3.
+- **The deck doesn't pitch or roll.**
+- **No landing legs and no touchdown dynamics.**
 
-Each of these could be added to make the problem harder or more realistic. The most interesting next steps would be deck heave, sensor noise and a limited number of relights.
+Real mode addressed the first two. The remaining realism gaps are deck pitch, landing legs and 3D.
