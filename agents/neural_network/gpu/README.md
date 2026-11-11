@@ -2,7 +2,8 @@
 
 A GPU rewrite of Neural Network v3.0. A whole population of networks lives on the GPU and is evaluated and evolved in parallel. It's trained on a new problem: **landing a rocket booster**.
 
-**[REPORT.md](REPORT.md)** has the results.
+- **[PROBLEM.md](PROBLEM.md)** describes the landing problem in full.
+- **[REPORT.md](REPORT.md)** has the results.
 
 ## Files
 
@@ -10,10 +11,11 @@ A GPU rewrite of Neural Network v3.0. A whole population of networks lives on th
 |---|---|
 | `gpu_nn.cuh` | The network: topology, flat parameter layout, and three forward passes. `forward_serial` runs on the CPU or one GPU thread. `forward_block` lets one thread block run one network, for episodes. `forward_population` is a batched, tiled matrix multiply over every network × every sample. |
 | `gpu_evolve.cuh` | The population on the GPU: Xavier initialization, elitism + truncation selection, and Gaussian mutation, all as GPU kernels. Only one cost per network crosses back to the CPU each generation. |
+| `es.cuh` | Evolution Strategies (OpenAI-ES): mirrored sampling, centered-rank fitness shaping (tie-aware), Adam with weight decay, and noise regenerated from a hash instead of stored. |
 | `verify_bench.cu` | Builds networks with v3 `neural_network.h`, converts them, checks the GPU gives the same outputs, then benchmarks v3 CPU, v4 CPU and both GPU modes. |
-| `rocket.cuh` | Booster Landing physics, observations, commands and cost. Shared by the GPU and CPU (`__host__ __device__`). |
-| `rocket.cu` | Booster Landing trainer: GPU episode kernel, CPU reference, training loop, validation, and the held-out test. |
-| `sizes.sh` | Trains several network sizes × seeds and writes `outputs/sizes_summary.csv`. |
+| `rocket.cuh` | Booster Landing physics, easy and hard mode, observations (with optional memory), commands and cost. Shared by the GPU and CPU (`__host__ __device__`). |
+| `rocket.cu` | Booster Landing trainer (`algo=ga` or `algo=es`): GPU episode kernel, CPU reference, training loop, validation, and the held-out test. All settings are listed at the top of the file. |
+| `sizes.sh` | Trains several network sizes × seeds for one setup and writes `outputs/sizes_<name>_summary.csv`. Re-running skips finished runs. |
 | `plot_rocket.py` | SVG plots (standard library only, reuses `../sine_trainer/plot.py`). |
 | `build.bat` | Windows build with the CUDA toolkit + Visual Studio C++ tools. |
 
@@ -24,12 +26,13 @@ Requirements: an NVIDIA GPU, the CUDA toolkit (tested with 13.5) and Visual Stud
 ```bat
 build.bat                      :: builds verify_bench.exe and rocket.exe
 verify_bench.exe               :: v3 equivalence check + benchmark -> outputs\bench.csv
-rocket.exe                     :: train 8-64-64-2, 400 generations (about 4 minutes on an RTX 3070)
-rocket.exe hidden=128,128 seed=2 gens=600
+rocket.exe                     :: easy mode, 8-64-64-2, 400 generations (2-4 minutes on an RTX 3070)
+rocket.exe mode=hard hidden=128,128 scen=32 sigma=0.03 sigma_end=0.005 gens=800
+rocket.exe mode=hard algo=es hidden=64,64 lr=0.01 sigma=0.05 out_init=0.01
 python plot_rocket.py          :: SVG plots into outputs\
 ```
 
-From Git Bash: `./sizes.sh 400` runs the network size comparison (about 45–60 minutes).
+From Git Bash, `sizes.sh` reruns the size comparisons. The exact commands are in its header and in REPORT.md.
 
 On Linux, the same sources should build with `nvcc -O3 -std=c++17 -arch=sm_86 rocket.cu -o rocket` (not tested; only the Windows build was run).
 

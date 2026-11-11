@@ -4,7 +4,8 @@
 *.pdb
 *.obj
 __pycache__/
-# raw per-run output of sizes.sh and pilot runs (summaries: outputs/sizes_<mode>_summary.csv)
-outputs/sizes_easy/
-outputs/sizes_hard/
+# raw per-run output of sizes.sh and test runs (summaries: outputs/sizes_<name>_summary.csv)
+outputs/sizes_*/
 outputs/pilot_*/
+outputs/tune*/
+outputs/chk_*/

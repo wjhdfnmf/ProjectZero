@@ -127,6 +127,28 @@ def plot_bench():
          [[float(r[k]) for k in keys] for r in rs], "passes / second", log=True)
 
 
+GROUP_TITLES = {"easy": "Easy mode, GA", "ga_hard": "Hard mode, GA (annealed mutation)",
+                "es_hard": "Hard mode, Evolution Strategies", "ga_hard_mem": "Hard mode, GA + memory"}
+
+
+def plot_compare(names):
+    """median % landed per network size, one bar series per training setup"""
+    data = {}
+    for n in names:
+        f = HERE / "outputs" / f"sizes_{n}_summary.csv"
+        if f.exists():
+            for r in rows(f):
+                data.setdefault(r["hidden"], {}).setdefault(n, []).append(100 * int(r["landed"]) / int(r["test"]))
+    present = [n for n in names if any(n in d for d in data.values())]
+    if len(present) < 2:
+        return
+    hs = list(data.keys())
+    med = lambda v: sorted(v)[len(v) // 2] if v else 0
+    bars("compare_hard.svg", "Hard mode: median landings (%) over 3 seeds",
+         [f"hidden {h}" for h in hs], [GROUP_TITLES[n].replace("Hard mode, ", "") for n in present],
+         [[med(data[h].get(n, [])) for n in present] for h in hs], "% landed", fmt="{:.1f}")
+
+
 def plot_sizes(mode):
     f = HERE / "outputs" / f"sizes_{mode}_summary.csv"
     if not f.exists():
@@ -141,7 +163,7 @@ def plot_sizes(mode):
         v = [100 * int(r["landed"]) / int(r["test"]) for r in rs if r["net"] == n]
         vals.append(sorted(v))
     n_seeds = max(len(v) for v in vals)
-    bars(f"sizes_{mode}.svg", f"{mode.capitalize()} mode: landings out of 1,000 new scenarios, by network size",
+    bars(f"sizes_{mode}.svg", f"{GROUP_TITLES.get(mode, mode)}: % landed on 1,000 new scenarios",
          nets, [f"seed run {i + 1} (sorted)" for i in range(n_seeds)],
          [v + [0] * (n_seeds - len(v)) for v in vals], "% landed", fmt="{:.1f}")
 
@@ -152,5 +174,6 @@ if __name__ == "__main__":
         plot_run(run)
     if len(sys.argv) <= 1:  # summary plots only for the default run
         plot_bench()
-        plot_sizes("easy")
-        plot_sizes("hard")
+        for g in GROUP_TITLES:
+            plot_sizes(g)
+        plot_compare(["ga_hard", "es_hard", "ga_hard_mem"])

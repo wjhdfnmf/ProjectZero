@@ -92,6 +92,28 @@ __host__ __device__ inline void observe(const State& st, const Params& P, float*
 	}
 }
 
+// Network input = observation, optionally with short-term memory ("hist"):
+//   [ current obs (n) | previous obs (n) | previous throttle, previous gimbal/max ]
+// Seeing two consecutive observations lets a feedforward network infer
+// accelerations, e.g. the push of wind it cannot sense directly.
+// `mem` (n + 2 floats) carries the previous step; hist = 0 gives exactly observe().
+constexpr int MAX_INPUTS = 2 * MAX_OBS + 2;
+__host__ __device__ inline int n_inputs(const Params& P, int hist) { return hist ? 2 * n_obs(P) + 2 : n_obs(P); }
+__host__ __device__ inline void make_input(const State& st, const Params& P, int hist, float* mem, float* in) {
+	observe(st, P, in);
+	if (!hist) return;
+	const int n = n_obs(P);
+	if (st.steps == 0) { for (int i = 0; i < n; ++i) mem[i] = in[i]; mem[n] = 0.0f; mem[n + 1] = 0.0f; }
+	for (int i = 0; i < n + 2; ++i) in[n + i] = mem[i];
+	for (int i = 0; i < n; ++i) mem[i] = in[i];
+}
+__host__ __device__ inline void remember_command(const State& st, const Params& P, int hist, float* mem, float gimbal) {
+	if (!hist) return;
+	const int n = n_obs(P);
+	mem[n] = st.thr;
+	mem[n + 1] = gimbal / P.gimbal_max;
+}
+
 // network outputs (tanh, -1..1) -> engine commands
 //   easy: throttle 0..1
 //   hard: output < -0.2 = engine off, otherwise min_throttle..1

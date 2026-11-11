@@ -26,18 +26,19 @@ struct EvoConfig {
 	float sigma = 0.02f;
 	float chance = 1.0f;
 	float init_gain = 1.0f;   // initial weights: U(+-gain*sqrt(6/(in+out))), biases 0
+	float final_gain = 1.0f;  // extra scale for the output layer (small = start with outputs near 0)
 	uint32_t seed = 1;
 };
 
-// initial weights (Xavier uniform scaled by gain; biases 0)
-__global__ void init_kernel(Topology t, float* params, int pop, float gain, uint32_t seed) {
+// initial weights (Xavier uniform scaled by gain, output layer also by final_gain; biases 0)
+__global__ void init_kernel(Topology t, float* params, int pop, float gain, uint32_t seed, float final_gain = 1.0f) {
 	const size_t total = (size_t)pop * t.n_params;
 	for (size_t i = blockIdx.x * (size_t)blockDim.x + threadIdx.x; i < total; i += (size_t)gridDim.x * blockDim.x) {
 		const int net = (int)(i / t.n_params), j = (int)(i % t.n_params);
 		float v = 0.0f;
 		for (int l = 0; l < t.n_layers; ++l) {
 			if (j >= t.w_off[l] && j < t.b_off[l]) {
-				const float lim = gain * sqrtf(6.0f / (t.size[l] + t.size[l + 1]));
+				const float lim = gain * sqrtf(6.0f / (t.size[l] + t.size[l + 1])) * (l == t.n_layers - 1 ? final_gain : 1.0f);
 				v = (2.0f * uniform01(hash4(seed, 0xA11CEu, net, j)) - 1.0f) * lim;
 			}
 		}
@@ -76,7 +77,7 @@ public:
 		CUDA_CHECK(cudaMalloc(&d_params, bytes));
 		CUDA_CHECK(cudaMalloc(&d_next, bytes));
 		CUDA_CHECK(cudaMalloc(&d_parent, cfg.pop * sizeof(int)));
-		init_kernel<<<1024, 256>>>(topo, d_params, cfg.pop, cfg.init_gain, cfg.seed);
+		init_kernel<<<1024, 256>>>(topo, d_params, cfg.pop, cfg.init_gain, cfg.seed, cfg.final_gain);
 		CUDA_CHECK(cudaGetLastError());
 	}
 	~Population() { cudaFree(d_params); cudaFree(d_next); cudaFree(d_parent); }
