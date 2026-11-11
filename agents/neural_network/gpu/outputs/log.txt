@@ -1,0 +1,19 @@
+network 8-64-64-2 (4866 weights)  population 1024  scenarios/gen 16  generations 400  sigma 0.03  seed 1
+gen    0  best cost    86.77  median   135.07  best lands  0/16  (0.2s)
+gen   40  best cost    -5.26  median    22.32  best lands  8/16  (27.0s)
+gen   80  best cost   -29.99  median    16.62  best lands 16/16  (52.3s)
+gen  120  best cost   -31.08  median    16.49  best lands 16/16  (76.0s)
+gen  160  best cost   -30.60  median    12.32  best lands 16/16  (100.8s)
+gen  200  best cost   -30.76  median    10.29  best lands 16/16  (124.6s)
+gen  240  best cost   -30.55  median    12.67  best lands 16/16  (152.4s)
+gen  280  best cost   -31.36  median     6.32  best lands 16/16  (174.3s)
+gen  320  best cost   -31.95  median     6.50  best lands 16/16  (205.9s)
+gen  360  best cost   -31.77  median     5.02  best lands 16/16  (230.2s)
+gen  400  best cost   -32.41  median     6.74  best lands 16/16  (255.9s)
+
+training: 255.9s (0.638s per generation, 6569984 episodes)
+test on 1000 new scenarios: landed 998 (99.8%), crashed 2, tipped 0, out of bounds 0, timeout 0
+mean test cost -32.10, mean fuel used per landing 3478 kg
+GPU vs CPU reference: same outcome on 200/200, max landing-x difference 6.1e-05 m
+SUMMARY net=8-64-64-2 params=4866 landed=998 test=1000 crashed=2 tipped=0 oob=0 timeout=0 cost=-32.105 fuel=3478.1 train_s=255.9 cpu_match=200
+

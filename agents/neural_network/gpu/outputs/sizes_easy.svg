@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="420" viewBox="0 0 760 420" font-family="sans-serif" font-size="12">
+<rect width="760" height="420" fill="white"/>
+<text x="380.0" y="28" font-size="16" font-weight="bold" text-anchor="middle">Easy mode: landings out of 1,000 new scenarios, by network size</text>
+<text x="18" y="195.0" text-anchor="middle" transform="rotate(-90 18 195.0)">% landed</text>
+<line x1="80" y1="340.0" x2="740" y2="340.0" stroke="#eee"/>
+<text x="74" y="344.0" text-anchor="end">0</text>
+<line x1="80" y1="282.0" x2="740" y2="282.0" stroke="#eee"/>
+<text x="74" y="286.0" text-anchor="end">22</text>
+<line x1="80" y1="224.0" x2="740" y2="224.0" stroke="#eee"/>
+<text x="74" y="228.0" text-anchor="end">44</text>
+<line x1="80" y1="166.0" x2="740" y2="166.0" stroke="#eee"/>
+<text x="74" y="170.0" text-anchor="end">66</text>
+<line x1="80" y1="108.0" x2="740" y2="108.0" stroke="#eee"/>
+<text x="74" y="112.0" text-anchor="end">88</text>
+<line x1="80" y1="50.0" x2="740" y2="50.0" stroke="#eee"/>
+<text x="74" y="54.0" text-anchor="end">110</text>
+<rect x="96.5" y="77.7" width="42.0" height="262.3" fill="#bdbdbd"/>
+<text x="118.5" y="74.7" text-anchor="middle" font-size="9">99.5</text>
+<rect x="140.5" y="76.9" width="42.0" height="263.1" fill="#74a9cf"/>
+<text x="162.5" y="73.9" text-anchor="middle" font-size="9">99.8</text>
+<rect x="184.5" y="76.4" width="42.0" height="263.6" fill="#0570b0"/>
+<text x="206.5" y="73.4" text-anchor="middle" font-size="9">100.0</text>
+<text x="162.5" y="356" text-anchor="middle">8-8-2</text>
+<rect x="261.5" y="78.7" width="42.0" height="261.3" fill="#bdbdbd"/>
+<text x="283.5" y="75.7" text-anchor="middle" font-size="9">99.1</text>
+<rect x="305.5" y="76.6" width="42.0" height="263.4" fill="#74a9cf"/>
+<text x="327.5" y="73.6" text-anchor="middle" font-size="9">99.9</text>
+<rect x="349.5" y="76.6" width="42.0" height="263.4" fill="#0570b0"/>
+<text x="371.5" y="73.6" text-anchor="middle" font-size="9">99.9</text>
+<text x="327.5" y="356" text-anchor="middle">8-32-32-2</text>
+<rect x="426.5" y="77.2" width="42.0" height="262.8" fill="#bdbdbd"/>
+<text x="448.5" y="74.2" text-anchor="middle" font-size="9">99.7</text>
+<rect x="470.5" y="76.9" width="42.0" height="263.1" fill="#74a9cf"/>
+<text x="492.5" y="73.9" text-anchor="middle" font-size="9">99.8</text>
+<rect x="514.5" y="76.9" width="42.0" height="263.1" fill="#0570b0"/>
+<text x="536.5" y="73.9" text-anchor="middle" font-size="9">99.8</text>
+<text x="492.5" y="356" text-anchor="middle">8-64-64-2</text>
+<rect x="591.5" y="78.7" width="42.0" height="261.3" fill="#bdbdbd"/>
+<text x="613.5" y="75.7" text-anchor="middle" font-size="9">99.1</text>
+<rect x="635.5" y="76.6" width="42.0" height="263.4" fill="#74a9cf"/>
+<text x="657.5" y="73.6" text-anchor="middle" font-size="9">99.9</text>
+<rect x="679.5" y="76.6" width="42.0" height="263.4" fill="#0570b0"/>
+<text x="701.5" y="73.6" text-anchor="middle" font-size="9">99.9</text>
+<text x="657.5" y="356" text-anchor="middle">8-128-128-2</text>
+<rect x="80" y="390" width="14" height="14" fill="#bdbdbd"/>
+<text x="100" y="401">seed run 1 (sorted)</text>
+<rect x="250" y="390" width="14" height="14" fill="#74a9cf"/>
+<text x="270" y="401">seed run 2 (sorted)</text>
+<rect x="420" y="390" width="14" height="14" fill="#0570b0"/>
+<text x="440" y="401">seed run 3 (sorted)</text>
+<line x1="80" y1="340" x2="740" y2="340" stroke="#333"/>
+</svg>
