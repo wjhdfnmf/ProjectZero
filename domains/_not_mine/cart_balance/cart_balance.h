@@ -15,6 +15,8 @@
 #include <fstream>
 #include <vector>
 #include <iostream>
+#include <cmath>
+#include <string>
 
 
 namespace CB {  // Cart Balance
@@ -62,6 +64,7 @@ namespace CB {  // Cart Balance
 		// states
 		double last_fitness;
 		bool below_horizontal;
+		bool track_walls;  // optional: cart stops at the track ends (off by default)
 
 		double determine_reward(); 		// determine fitness
 
@@ -77,7 +80,17 @@ namespace CB {  // Cart Balance
 		std::vector <double> get_action(std::vector <double>); 	// get action then cycle
 
 		double delta_theta(double); 	// return delta theta from PI/2 to input
-		void export_all_states(); 		// log all state history to file
+		// log all state history to file
+		void export_all_states(const std::string& path = "outputs/pend_state_log.csv");
+
+		// read-only access to the latest state (added for controllers and logging)
+		const PendState& pend_state() const { return pend.back(); }
+		const CartState& cart_state() const { return cart.back(); }
+		double last_force() const { return force_history.back(); }
+		double last_torque() const { return torq_history.back(); }
+		// optional track walls: when on, the cart stops at +/- track/2 instead of
+		// rolling forever. Off by default, which keeps the original problem.
+		void set_track_walls(bool on) { track_walls = on; }
 	};
 
 	Pendulum::Pendulum(	
@@ -104,6 +117,7 @@ namespace CB {  // Cart Balance
 
 		// do not modify - setup inital state
 		below_horizontal = false;
+		track_walls = false;
 		// convert the inital theta to radians
 		initial_pend.theta = in_theta * M_PI / 180;
 		initial_pend.theta_dot = 0; 	// rad/s
@@ -160,7 +174,13 @@ namespace CB {  // Cart Balance
 		cartState.x_dd = x_dd;
 		cartState.x_dot = cart.at(cart.size() - 1).x_dot + cartState.x_dd * dt;
 		cartState.x = cart.at(cart.size() - 1).x + cartState.x_dot * dt;
-	
+
+		// optional track walls (off by default)
+		if (track_walls && std::fabs(cartState.x) > cartState.track / 2) {
+			cartState.x = (cartState.x > 0 ? 1 : -1) * cartState.track / 2;
+			cartState.x_dot = 0.0;
+		}
+
 		// Update pendulum state
 		pendState.theta_dd = theta_dd;
 		pendState.theta_dot = pend.at(pend.size() - 1).theta_dot + pendState.theta_dd * dt;
@@ -234,11 +254,14 @@ namespace CB {  // Cart Balance
 		}
 
 		// integral of position error
+		// (skipped when its weight is 0: it scans the whole history every step)
 		double fitness_pi = 0.0;
-		for (std::size_t i=0; i<pend.size(); ++i) {
-			fitness_pi += abs((delta_theta(pend.at(i).theta))/2*M_PI*pi_weight);
+		if (pi_weight != 0.0) {
+			for (std::size_t i=0; i<pend.size(); ++i) {
+				fitness_pi += abs((delta_theta(pend.at(i).theta))/2*M_PI*pi_weight);
+			}
+			fitness_pi = fitness_pi / pend.size();
 		}
-		fitness_pi = fitness_pi / pend.size();
 
 		// total fitness
 		double total_fitness;
@@ -309,7 +332,7 @@ namespace CB {  // Cart Balance
 		//std::cout << "debug: Pendulum::delta_theta()" << std::endl;
 #endif
 		double t = 0.0;
-		if (in > M_PI/2 && in <= 3/2*M_PI) {
+		if (in > M_PI/2 && in <= 3.0/2*M_PI) {  // was 3/2*M_PI (integer division = PI); same result after the wrap below
 			// between: PI/2 and 3/2*PI
 			t = in - M_PI/2;
 		} else {
@@ -331,15 +354,16 @@ namespace CB {  // Cart Balance
 
 	}
 
-	// export all state history to file "pend_state_log.csv" for review
-	void Pendulum::export_all_states() {
+	// export all state history to a CSV file for review
+	// (default "outputs/pend_state_log.csv", relative to where the program runs)
+	void Pendulum::export_all_states(const std::string& path) {
 #ifdef CB_DEBUG
 		std::cout << "debug: Pendulum::export_all_states()" << std::endl;
 #endif
 		std::ofstream fout;
-		fout.open("/home/boss/data/working/personal/ProjectZero/domains/_not_mine/cart_balance/outputs/pend_state_log.csv", std::ofstream::out | std::ofstream::trunc);
+		fout.open(path, std::ofstream::out | std::ofstream::trunc);
 		if (!fout.is_open()) {
-			std::cerr << "ERROR: could not open file for writing" << std::endl;
+			std::cerr << "ERROR: could not open " << path << " for writing" << std::endl;
 			return;
 		}
 		fout << "torq, px, py, theta, theta_dot, theta_dd, fitness, delta_theta, force, cx, x_dot, x_dd" << "\n";
