@@ -1,0 +1,9 @@
+# kernel benchmark: block vs warp episode kernel, one generation (1,024 networks x 32 scenarios), mean of 3, RTX 3070, 2026-11-11
+mode=hard net=10-8-2 episodes=32768 block_kernel=0.033s warp_kernel=0.026s speedup=1.29x episodes_per_block=8 weights_in_shared=1 differ=490 differ_by_more_than_1=0 mean_cost_block=132.1483 mean_cost_warp=132.1483
+mode=hard net=10-16-2 episodes=32768 block_kernel=0.032s warp_kernel=0.026s speedup=1.25x episodes_per_block=8 weights_in_shared=1 differ=473 differ_by_more_than_1=0 mean_cost_block=131.9187 mean_cost_warp=131.9187
+mode=hard net=10-64-64-2 episodes=32768 block_kernel=0.192s warp_kernel=0.097s speedup=1.98x episodes_per_block=8 weights_in_shared=1 differ=497 differ_by_more_than_1=0 mean_cost_block=131.9208 mean_cost_warp=131.9208
+mode=hard net=10-128-128-2 episodes=32768 block_kernel=0.319s warp_kernel=0.560s speedup=0.57x episodes_per_block=8 weights_in_shared=0 differ=467 differ_by_more_than_1=0 mean_cost_block=131.7786 mean_cost_warp=131.7786
+mode=real net=12-8-2 episodes=32768 block_kernel=0.086s warp_kernel=0.073s speedup=1.18x episodes_per_block=8 weights_in_shared=1 differ=457 differ_by_more_than_1=0 mean_cost_block=139.4665 mean_cost_warp=139.4665
+mode=real net=12-16-2 episodes=32768 block_kernel=0.085s warp_kernel=0.072s speedup=1.18x episodes_per_block=8 weights_in_shared=1 differ=465 differ_by_more_than_1=0 mean_cost_block=139.0003 mean_cost_warp=139.0003
+mode=real net=12-64-64-2 episodes=32768 block_kernel=0.362s warp_kernel=0.148s speedup=2.45x episodes_per_block=8 weights_in_shared=1 differ=429 differ_by_more_than_1=0 mean_cost_block=137.9965 mean_cost_warp=137.9965
+mode=real net=12-128-128-2 episodes=32768 block_kernel=0.400s warp_kernel=0.619s speedup=0.65x episodes_per_block=8 weights_in_shared=0 differ=499 differ_by_more_than_1=0 mean_cost_block=137.9959 mean_cost_warp=137.9959

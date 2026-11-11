@@ -171,6 +171,43 @@ def plot_sizes(mode):
          [v + [0] * (n_seeds - len(v)) for v in vals], "% landed", fmt="{:.1f}")
 
 
+DAY2_LABELS = {
+    "h8": "8", "h16": "16", "h32x32": "32-32", "h64x64": "64-64",
+    "no_ignition_limit": "unlimited starts", "no_noise": "no noise", "no_delay": "no delay",
+    "no_heave": "no heave", "original_score": "original score",
+    "ga_finetune": "+400 GA gens", "es_finetune": "+400 ES gens", "start": "start (transferred)",
+}
+
+
+def plot_day2():
+    """real-mode experiments (day2.sh): % landed per seed, one chart per group"""
+    f = HERE / "outputs" / "day2_summary.csv"
+    if not f.exists():
+        return
+    rs = rows(f)
+    by = {}
+    for r in rs:
+        by.setdefault(r["group"], {}).setdefault(r["name"], []).append(100 * int(r["landed"]) / int(r["test"]))
+    titles = {"sizes": "Real mode, from scratch: % landed by network size",
+              "transfer": "Real mode, starting from a hard-mode network: % landed",
+              "ablation": "Real mode (8-node), one feature switched off: % landed",
+              "hybrid": "Fine-tuning the transferred 8-node network: % landed"}
+    for g, names in by.items():
+        if g == "ablation":  # baseline = the 8-node from-scratch runs
+            base = by.get("sizes", {}).get("h8")
+            if base:
+                names = {"h8": base, **names}
+        if g == "hybrid":  # starting point = the transferred 8-node runs
+            base = by.get("transfer", {}).get("h8")
+            if base:
+                names = {"start": base, **names}
+        ns = list(names.keys())
+        n_seeds = max(len(v) for v in names.values())
+        labels = ["all features on" if (g == "ablation" and n == "h8") else DAY2_LABELS.get(n, n) for n in ns]
+        bars(f"day2_{g}.svg", titles.get(g, g), labels, [f"seed {i + 1}" for i in range(n_seeds)],
+             [names[n] + [0] * (n_seeds - len(names[n])) for n in ns], "% landed", fmt="{:.1f}")
+
+
 if __name__ == "__main__":
     run = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "outputs"
     if (run / "trajectories.csv").exists():
@@ -180,3 +217,4 @@ if __name__ == "__main__":
         for g in GROUP_TITLES:
             plot_sizes(g)
         plot_compare(["ga_hard5", "es_hard5", "ga_hard5_mem"])
+        plot_day2()

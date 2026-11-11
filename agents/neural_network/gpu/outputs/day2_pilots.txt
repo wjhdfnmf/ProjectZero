@@ -1,0 +1,77 @@
+# Day 2 single-seed pilots and tuning runs (seed 1). Settings are in each run's first lines; SUMMARY is the final test.
+
+== pilot_real_8
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-8-2 (122 weights)  population 1024  scenarios/gen 32  generations 800  sigma 0.03 -> 0.005000  seed 1
+SUMMARY algo=ga mode=real hist=0 net=12-8-2 params=122 landed=584 test=1000 crashed=413 tipped=3 oob=0 timeout=0 cost=-23.420 fuel=2850.4 train_s=166.2 cpu_match=200 ignitions=2.33
+
+== pilot_real_64x64
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-64-64-2 (5122 weights)  population 1024  scenarios/gen 32  generations 800  sigma 0.03 -> 0.005000  seed 1
+SUMMARY algo=ga mode=real hist=0 net=12-64-64-2 params=5122 landed=361 test=1000 crashed=632 tipped=7 oob=0 timeout=0 cost=-3.213 fuel=3034.6 train_s=303.6 cpu_match=200 ignitions=2.42
+
+== pilot_real_128x128
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-128-128-2 (18434 weights)  population 1024  scenarios/gen 32  generations 800  sigma 0.03 -> 0.005000  seed 1
+SUMMARY algo=ga mode=real hist=0 net=12-128-128-2 params=18434 landed=186 test=1000 crashed=809 tipped=5 oob=0 timeout=0 cost=12.098 fuel=2756.0 train_s=829.3 cpu_match=200 ignitions=2.57
+
+== tr_real_8
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-8-2 (122 weights)  population 1024  scenarios/gen 32  generations 800  sigma 0.03 -> 0.005000  seed 1
+transfer: 10-8-2 -> 12-8-2 (2 new inputs start with zero weight)
+SUMMARY algo=ga mode=real hist=0 net=12-8-2 params=122 landed=723 test=1000 crashed=277 tipped=0 oob=0 timeout=0 cost=-36.161 fuel=2958.0 train_s=165.1 cpu_match=200 ignitions=1.85
+
+== tr_real_64
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-64-64-2 (5122 weights)  population 1024  scenarios/gen 32  generations 800  sigma 0.03 -> 0.005000  seed 1
+transfer: 10-64-64-2 -> 12-64-64-2 (2 new inputs start with zero weight)
+SUMMARY algo=ga mode=real hist=0 net=12-64-64-2 params=5122 landed=423 test=1000 crashed=561 tipped=16 oob=0 timeout=0 cost=-7.467 fuel=2768.8 train_s=272.5 cpu_match=200 ignitions=2.09
+
+== tr_real_128a
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-128-128-2 (18434 weights)  population 1024  scenarios/gen 32  generations 800  sigma 0.03 -> 0.005000  seed 1
+transfer: 10-128-128-2 -> 12-128-128-2 (2 new inputs start with zero weight)
+SUMMARY algo=ga mode=real hist=0 net=12-128-128-2 params=18434 landed=0 test=1000 crashed=998 tipped=2 oob=0 timeout=0 cost=37.119 fuel=0.0 train_s=772.0 cpu_match=200 ignitions=2.94
+
+== tr_real_128b
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-128-128-2 (18434 weights)  population 1024  scenarios/gen 32  generations 800  sigma 0.01 -> 0.002000  seed 1
+transfer: 10-128-128-2 -> 12-128-128-2 (2 new inputs start with zero weight)
+SUMMARY algo=ga mode=real hist=0 net=12-128-128-2 params=18434 landed=2 test=1000 crashed=998 tipped=0 oob=0 timeout=0 cost=39.524 fuel=1544.5 train_s=615.5 cpu_match=200 ignitions=2.29
+
+== g_sparse
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-64-64-2 (5122 weights)  population 1024  scenarios/gen 32  generations 800  sigma 0.1 -> 0.020000  seed 1
+SUMMARY algo=ga mode=real hist=0 net=12-64-64-2 params=5122 landed=370 test=1000 crashed=629 tipped=1 oob=0 timeout=0 cost=-2.216 fuel=3133.9 train_s=295.0 cpu_match=200 ignitions=2.63
+
+== g_outinit
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-64-64-2 (5122 weights)  population 1024  scenarios/gen 32  generations 800  sigma 0.03 -> 0.005000  seed 1
+SUMMARY algo=ga mode=real hist=0 net=12-64-64-2 params=5122 landed=330 test=1000 crashed=660 tipped=10 oob=0 timeout=0 cost=1.288 fuel=2691.8 train_s=306.0 cpu_match=200 ignitions=1.94
+
+== g_scen64
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-64-64-2 (5122 weights)  population 1024  scenarios/gen 64  generations 800  sigma 0.03 -> 0.005000  seed 1
+SUMMARY algo=ga mode=real hist=0 net=12-64-64-2 params=5122 landed=394 test=1000 crashed=602 tipped=4 oob=0 timeout=0 cost=-5.256 fuel=2947.0 train_s=586.9 cpu_match=200 ignitions=2.56
+
+== g_select
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-64-64-2 (5122 weights)  population 1024  scenarios/gen 32  generations 800  sigma 0.03 -> 0.005000  seed 1
+SUMMARY algo=ga mode=real hist=0 net=12-64-64-2 params=5122 landed=371 test=1000 crashed=612 tipped=17 oob=0 timeout=0 cost=-2.612 fuel=2857.7 train_s=327.6 cpu_match=200 ignitions=2.43
+
+== g_long
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-64-64-2 (5122 weights)  population 1024  scenarios/gen 32  generations 2400  sigma 0.03 -> 0.005000  seed 1
+SUMMARY algo=ga mode=real hist=0 net=12-64-64-2 params=5122 landed=383 test=1000 crashed=615 tipped=2 oob=0 timeout=0 cost=-5.018 fuel=3070.1 train_s=958.3 cpu_match=200 ignitions=2.60

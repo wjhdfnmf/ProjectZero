@@ -13,7 +13,7 @@
 4. **The flagship model**, 128-128 trained for 2,400 generations, lands **96.3%** of 1,000 unseen hard-mode flights with **~10% less propellant** than the shorter runs. Its landing rate is no higher: longer training optimized fuel, because that's what the score rewards. It also found a loophole: it **pulses the engine** dozens of times to fake the hover it isn't allowed to do.
 5. **Not every "modern improvement" helped.** I tried Evolution Strategies (OpenAI-ES with Adam), short-term memory, and a small output-layer initialization. They lost to a well-tuned genetic algorithm here. The two things that did matter were **annealing the mutation size** and **making the problem realistic**.
 
-The problem itself is described in [PROBLEM.md](PROBLEM.md).
+The problem itself is described in [PROBLEM.md](PROBLEM.md). **Day 2 follow-up:** [REPORT_DAY2.md](REPORT_DAY2.md) works through the next steps below. It adds a faster kernel and a much more realistic "real mode" (3 engine starts, sensor noise and delay, deck heave), and trains a real-mode model that lands 85.5% of flights.
 
 <p align="center">
   <img src="outputs/flagship/trajectories.svg" width="49%" alt="Flagship test flights">

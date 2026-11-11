@@ -1,0 +1,22 @@
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-8-2 (122 weights)  population 1024  scenarios/gen 64  generations 2000  sigma 0.01 -> 0.002000  seed 1
+starting from outputs/day2/hybrid/ga_finetune_s1/weights.txt
+gen    0  best cost   -42.48  median   -42.48  best lands 51/64  (0.4s)
+gen  200  best cost   -37.90  median     2.35  best lands 49/64  (84.9s)
+gen  400  best cost   -45.21  median   -10.84  best lands 53/64  (169.1s)
+gen  600  best cost   -41.67  median   -13.53  best lands 51/64  (253.7s)
+gen  800  best cost   -51.85  median   -27.01  best lands 58/64  (338.1s)
+gen 1000  best cost   -49.15  median   -21.45  best lands 56/64  (422.0s)
+gen 1200  best cost   -45.19  median   -29.27  best lands 53/64  (505.6s)
+gen 1400  best cost   -54.47  median   -38.78  best lands 60/64  (589.6s)
+gen 1600  best cost   -53.33  median   -41.35  best lands 59/64  (674.1s)
+gen 1800  best cost   -54.44  median   -41.26  best lands 60/64  (758.9s)
+gen 2000  best cost   -51.71  median   -42.39  best lands 58/64  (843.8s)
+
+training: 843.8s (0.422s per generation, 131137536 episodes)
+test on 1000 new scenarios: landed 855 (85.5%), crashed 145, tipped 0, out of bounds 0, timeout 0
+mean test cost -47.54, mean fuel used per landing 3078 kg
+mean engine starts per flight 1.97
+GPU vs CPU reference: same outcome on 200/200, max landing-x difference 2.34e-05 m
+SUMMARY algo=ga mode=real hist=0 net=12-8-2 params=122 landed=855 test=1000 crashed=145 tipped=0 oob=0 timeout=0 cost=-47.545 fuel=3077.8 train_s=843.8 cpu_match=200 ignitions=1.97
