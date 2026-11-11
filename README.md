@@ -18,8 +18,8 @@ A **trainer** sits on top of that loop. It runs a population of agents through t
 ## Components
 
 ### Agents (`agents/`)
-- **Neural network** (`agents/neural_network/network/neural_network.h`): a feed-forward network built from `Node` → `Layer` → `Network`, with configurable nodes per layer, weight mutation (mutation size and chance) and weight import/export.
-- **Network trainer v3.0** (`agents/neural_network/trainer_3_0/`): an evolutionary trainer that evolves a population of 100 networks on the cart-balance domain by scoring, pruning, repopulating and mutating them. It logs fitness history, saves the best network (`best_network.bin`), and plots the results with gnuplot.
+- **Neural network** (`agents/neural_network/network/neural_network.h`): a feed-forward network built from `Node` → `Layer` → `Network`, with configurable nodes per layer, weight mutation and weight import/export. See the [deep dive](#deep-dive-the-neural-network-agent) below.
+- **Network trainer v3.0** (`agents/neural_network/trainer_3_0/`): an evolutionary trainer that evolves a population of 100 networks on the cart-balance domain. It logs fitness history, replays the best network, and plots the results with gnuplot.
 - **Q-learner** (`agents/q_learner/`): a tabular Q-learning agent for the grid domain (work in progress).
 - Older trainer and network versions are kept in `_complete/` and `_outdated/`.
 
@@ -41,6 +41,95 @@ The unified version that ties it all together:
   <img src="system/_gui/source/media/system_tab.png" width="45%" alt="Qt GUI system tab">
   <img src="system/_gui/source/media/data_tab.png" width="45%" alt="Qt GUI data tab">
 </p>
+
+---
+
+## Deep dive: the neural network agent
+
+The agent is a small fully connected feed-forward network trained by **neuroevolution**: there's no backpropagation and no gradients. Networks are scored on the cart-balance domain, and the better ones are copied and randomly mutated. The network lives in `agents/neural_network/network/neural_network.h` and the trainer in `agents/neural_network/trainer_3_0/network_trainer.h`.
+
+### 1. Structure: `Node` → `Layer` → `Network`
+
+The trainer builds a **3 → 4 → 2** network:
+
+```
+   INPUT (3 + bias)          HIDDEN (4 + bias)          OUTPUT (2)
+
+   cos θ  ──┐               ┌── h1 ──┐
+   sin θ  ──┼── weights ────┼── h2 ──┼── weights ──┬── torque  (× max_torque)
+   θ̇      ──┤   (all to all)├── h3 ──┤  (all to all)└── force   (× max_force)
+   bias=1 ──┘               ├── h4 ──┤
+                            └─ bias=1┘
+```
+
+- **Layer sizes** are passed as a nodes-per-layer list (`{3, 4, 2}`). `add_bias()` adds a bias node to every layer except the output, so internally the network is `{4, 5, 2}`.
+- **Each node stores its outgoing weights**, one per node in the next layer. The `Network` holds `Layer`s, each `Layer` holds `Node`s, and each `Node` holds `std::vector<double> weights`.
+- **Bias nodes** always output `1.0`, regardless of their input. This gives each downstream node a learnable offset.
+- **Output nodes have no weights.** Their single value is the network's output.
+
+### 2. Forward pass (`Network::cycle`)
+
+1. **Input layer.** `format_input()` appends `1.0` for the bias node. Each input node passes its value through unchanged, with no activation, then multiplies it by each outgoing weight.
+2. **Hidden and output layers.** `Layer::cycle` transposes the previous layer's outputs so that node *j* receives the *j*-th weighted value from every node before it. Each node sums its inputs and applies **`tanh`**. A sigmoid is still in the code, commented out.
+3. **Output.** The output layer's values, each in `[-1, 1]`, are collected into a plain vector.
+
+In equation form, for node *j* in layer *l*:
+
+```
+a_j(l) = tanh( Σ_i  w_ij(l-1) · a_i(l-1) )      where the bias node has a = 1
+```
+
+### 3. Initialization
+
+Each weight starts as a random magnitude in `[0, 1]` with a random sign (50/50), so initial weights fall in `[-1, 1]`.
+
+### 4. Mutation (`Node::mutate`)
+
+Every weight in the network gets an independent chance to mutate:
+
+```
+with probability  mutate_chance (0.1):
+    w  ←  w + U(0, mutate_mod) − U(0, mutate_mod)        mutate_mod = 0.2
+```
+
+Subtracting two uniform samples gives a **triangular** step centered on zero within `±0.2`. Small tweaks are common and large ones are rare. There's no crossover; offspring are mutated copies of a single parent.
+
+### 5. How the agent sees and acts on the domain
+
+| | Value | Notes |
+|---|---|---|
+| **Inputs** | `cos θ`, `sin θ`, `θ̇` | θ is the pendulum angle in radians, with upright = 90° (π/2). Encoding the angle as cos/sin avoids the jump where 359° wraps to 0°. |
+| **Output 1** | torque = `tanh(…) × max_torque` | `max_torque = 0` in trainer v3.0, so torque is **off**. |
+| **Output 2** | force = `tanh(…) × max_force` | `max_force = 40 N`, pushing the cart left or right. |
+
+The domain clamps both actions to their limits, steps the physics (`dt = 0.1 s`), and returns a **cost** (lower is better):
+
+| Term | Weight | Penalizes |
+|---|---|---|
+| Angle error from upright | 100 | Leaning away from 90° |
+| Angular velocity | 1000, then capped and normalized to 0–1 | Any swinging |
+| Below horizontal | +10 | The pendulum falling past horizontal |
+| Torque used, wrong direction, integrated error | 0 | Present but turned off |
+
+### 6. Training loop (`Trainer::train`)
+
+Starting setup: 100 random networks, the pendulum at **θ = 95°** (5° off upright), a 1 kg / 1 m pendulum on a 2 kg cart, and a 10 m track.
+
+Each **round** (generation), repeated `round_max = 1000` times:
+
+1. **Evaluate.** Each network gets a fresh pendulum and controls it for `test_count = 200` steps (20 s of simulated time). Its fitness is the cost averaged over those steps. Every network starts from the same state; there's no randomness in the domain.
+2. **Record** (`error_manager`). Track the best network ever seen and the round's best fitness, and append every network's fitness to `fitness_history`.
+3. **Select** (`prune`). Run 50 two-network tournaments: pick two networks at random and keep the one with the lower cost. A network can win more than once.
+4. **Refill** (`populate`). Copy random survivors, mutate the copies, and add them until the population is back to 100.
+
+After training, `run_best_network()` replays the best network on a fresh pendulum and exports every state to CSV. `outputs/graph_all.gnu` then plots angle, position, force, torque and fitness.
+
+### 7. Things worth knowing about the current code
+
+- **Selection is effectively random right now.** `error_manager()` resets `pop_fitness` to zero *before* `prune()` runs. Every tournament therefore compares 0 to 0 and keeps the second pick. The best network is still tracked and replayed, but it isn't carried into the next generation (there's no elitism). Moving the reset to after `prune()` would make selection use the real scores.
+- **The best network isn't saved to disk.** The code that would write `best_network.bin` is commented out in `run_best_network()`, so the `.bin` in the repo is from an earlier run.
+- **Some weights do nothing.** Each node also gets a weight to the next layer's bias node, but bias nodes ignore their input. In the 3-4-2 network, 4 of the 30 weights have no effect.
+- **The range settings aren't used.** `weight_gen_min` and `weight_gen_max` are set to −1 and 1 but never read. The actual range is the same anyway.
 
 ---
 
