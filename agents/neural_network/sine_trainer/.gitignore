@@ -1,2 +1,3 @@
 # raw per-run experiment output (regenerate with ./experiments.sh)
 outputs/experiments/
+__pycache__/
