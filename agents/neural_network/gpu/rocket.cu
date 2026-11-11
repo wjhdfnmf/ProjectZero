@@ -17,6 +17,11 @@
 //   hidden=64,64   hidden layer sizes
 //   hist=0         1: network also sees the previous observation and command (short-term memory)
 //   out_init=1     scale of the output layer's initial weights (0.01 = start with outputs near 0)
+//   kernel=auto    auto: warp if every layer is <= 64 wide, else block
+//                  warp: one warp per episode, 8 episodes of one network share a block (1.3-1.9x faster for <= 64 wide)
+//                  block: one thread block per episode (the original; reproduces earlier runs bit for bit)
+//   bench_kernels=1  time block vs warp kernel on one generation, report differences, and exit
+//   warp_smem_kb=48  shared-memory budget per warp-kernel block (weights go to global memory above it)
 //   gens=400       generations                scen=16      scenarios per generation
 //   seed=1         test=1000    held-out test scenarios      out=outputs
 //   GA:  pop=1024  sigma=0.03  sigma_end=0 (anneal to)  chance=1  elites=8  parents=0.1
@@ -63,7 +68,7 @@ __global__ void episode_kernel(Topology t, const float* __restrict__ params, boo
 	float* b = a + t.max_width;
 	__shared__ State st;
 	__shared__ Scenario sc;
-	__shared__ float mem[rocket::MAX_OBS + 2];
+	__shared__ float mem[rocket::MEM_FLOATS];
 	__shared__ int done;
 
 	if (weights_in_shared)
@@ -89,14 +94,67 @@ __global__ void episode_kernel(Topology t, const float* __restrict__ params, boo
 		if (done) break;
 	}
 	if (threadIdx.x == 0) {
-		cost_out[blockIdx.x] = rocket::cost(st);
+		cost_out[blockIdx.x] = rocket::cost(st, P);
 		if (final_out) final_out[blockIdx.x] = st;
+	}
+}
+
+// ------------------------------------------------------------------
+// Warp episode kernel: one WARP per episode, W episodes per block. The W
+// episodes in a block belong to the same network (W divides n_sc), so they
+// share one shared-memory copy of its weights. Lane 0 does the physics; all
+// 32 lanes compute the network. Only warp-level syncs inside the loop, so a
+// warp never waits for another episode. Bit-identical to episode_kernel.
+// ------------------------------------------------------------------
+__host__ __device__ inline int warp_scratch(const Topology& t) { return IN_BUF + 2 * t.max_width + rocket::MEM_FLOATS; }
+
+__global__ void episode_kernel_warp(Topology t, const float* __restrict__ params, bool weights_in_shared,
+                                    const Scenario* __restrict__ scen, int n_sc, int W, rocket::Params P, int hist,
+                                    float* cost_out, State* final_out, TrajPoint* traj, int traj_scen) {
+	extern __shared__ float sh[];
+	const int warp = threadIdx.x >> 5, lane = threadIdx.x & 31;
+	const int e = blockIdx.x * W + warp;          // episode index = net * n_sc + scenario
+	const int net = e / n_sc, si = e % n_sc;
+	const float* gp = params + (size_t)net * t.n_params;
+	float* w = sh;
+	float* in = (weights_in_shared ? sh + t.n_params : sh) + (size_t)warp * warp_scratch(t);
+	float* a = in + IN_BUF;
+	float* b = a + t.max_width;
+	float* mem = b + t.max_width;
+	if (weights_in_shared)
+		for (int i = threadIdx.x; i < t.n_params; i += blockDim.x) w[i] = gp[i];
+	__syncthreads();
+	const float* p = weights_in_shared ? w : gp;
+
+	State st;
+	Scenario sc;
+	if (lane == 0) { sc = scen[si]; st = rocket::start(sc); }
+	int done = 0;
+	while (true) {
+		if (lane == 0) rocket::make_input(st, P, hist, mem, in);
+		__syncwarp();
+		const float* y = forward_warp(t, p, in, a, b, lane);
+		if (lane == 0) {
+			float thr, gim;
+			rocket::command(y, P, thr, gim);
+			rocket::step(st, thr, gim, sc, P);
+			rocket::remember_command(st, P, hist, mem, gim);
+			if (traj && si < traj_scen)
+				traj[(size_t)si * P.max_steps + st.steps - 1] = {st.x, st.y, st.theta, st.thr, gim, st.pad_x};
+			done = st.outcome != rocket::FLYING;
+		}
+		done = __shfl_sync(0xffffffffu, done, 0);
+		if (done) break;
+	}
+	if (lane == 0) {
+		cost_out[e] = rocket::cost(st, P);
+		if (final_out) final_out[e] = st;
 	}
 }
 
 // same episode on the CPU (reference for checking the GPU)
 State episode_cpu(const Topology& t, const float* p, const Scenario& sc, const rocket::Params& P, int hist) {
-	std::vector<float> in(IN_BUF), mem(rocket::MAX_OBS + 2), out(t.outputs()), ba(t.max_width), bb(t.max_width);
+	std::vector<float> in(IN_BUF), mem(rocket::MEM_FLOATS), out(t.outputs()), ba(t.max_width), bb(t.max_width);
 	State st = rocket::start(sc);
 	while (st.outcome == rocket::FLYING) {
 		rocket::make_input(st, P, hist, mem.data(), in.data());
@@ -109,9 +167,11 @@ State episode_cpu(const Topology& t, const float* p, const Scenario& sc, const r
 	return st;
 }
 
-bool g_hard = false;      // set from mode=hard
+bool g_hard = false;      // set from mode=hard or mode=real
+bool g_real = false;      // set from mode=real
 float g_ship_amp = 5.0f;  // hard mode: max drone-ship sway (m), set from ship=
                           // (ship=20 was the first, unrealistic version: deck up to 15.7 m/s)
+float g_heave_amp = 1.5f; // real mode: max deck heave (m), set from heave=
 
 std::vector<Scenario> make_scenarios(int n, uint32_t seed) {
 	std::mt19937 r(seed);
@@ -124,9 +184,14 @@ std::vector<Scenario> make_scenarios(int n, uint32_t seed) {
 		s.fuel = U(4000, 7000);
 		s.wind = U(-15, 15);  s.gust_amp = U(0, 8); s.gust_w = U(0.2f, 1.0f); s.gust_phase = U(0, 6.2832f);
 		s.ship_amp = 0.0f; s.ship_w = 0.0f; s.ship_phase = 0.0f;
+		s.heave_amp = 0.0f; s.heave_w = 0.0f; s.heave_phase = 0.0f; s.noise_seed = 0;
 		if (g_hard) {  // drawn after the easy values, so easy scenarios are unchanged
 			s.wind = U(-20, 20); s.gust_amp = U(0, 12);
 			s.ship_amp = U(0, 1) * g_ship_amp; s.ship_w = 6.2832f / U(8, 14); s.ship_phase = U(0, 6.2832f);
+		}
+		if (g_real) {  // drawn after the hard values, so hard scenarios are unchanged
+			s.heave_amp = U(0, 1) * g_heave_amp; s.heave_w = 6.2832f / U(6, 10); s.heave_phase = U(0, 6.2832f);
+			s.noise_seed = r();
 		}
 	}
 	return v;
@@ -137,6 +202,7 @@ struct Runner {
 	Topology t;
 	rocket::Params P;
 	int hist;
+	bool warp_kernel = true;   // false = the original one-block-per-episode kernel
 	bool shared;
 	size_t smem;
 	int threads;
@@ -150,6 +216,18 @@ struct Runner {
 		shared = (t.n_params * sizeof(float) + buf) <= 48 * 1024;
 		smem = (shared ? t.n_params * sizeof(float) : 0) + buf;
 		threads = std::max(32, std::min(256, ((t.max_width + 31) / 32) * 32));
+		// warp kernel may use up to 99 KB of shared memory per block (sm_86)
+		CUDA_CHECK(cudaFuncSetAttribute(episode_kernel_warp, cudaFuncAttributeMaxDynamicSharedMemorySize, 99 * 1024));
+	}
+	// warp kernel layout for n_sc scenarios: W episodes per block (W divides n_sc),
+	// weights in shared memory if they fit in 99 KB alongside W scratch areas
+	int warp_shared_limit = 48 * 1024;  // max bytes of weights+scratch to keep weights in shared memory
+	void warp_layout(int n_sc, int& W, bool& w_shared, size_t& bytes) const {
+		const size_t wbytes = (size_t)t.n_params * sizeof(float);
+		const size_t scratch = (size_t)warp_scratch(t) * sizeof(float);
+		for (W = 8; W > 1 && n_sc % W != 0; W /= 2) {}
+		w_shared = wbytes + W * scratch <= (size_t)warp_shared_limit;
+		bytes = (w_shared ? wbytes : 0) + W * scratch;
 	}
 	void ensure(int n_sc, int n_blocks) {
 		if (n_sc > sc_cap) { cudaFree(d_sc); CUDA_CHECK(cudaMalloc(&d_sc, n_sc * sizeof(Scenario))); sc_cap = n_sc; }
@@ -170,8 +248,15 @@ struct Runner {
 			CUDA_CHECK(cudaMalloc(&d_traj, (size_t)traj_scen * P.max_steps * sizeof(TrajPoint)));
 			CUDA_CHECK(cudaMemset(d_traj, 0, (size_t)traj_scen * P.max_steps * sizeof(TrajPoint)));
 		}
-		episode_kernel<<<blocks, threads, smem>>>(t, d_params, shared, d_sc, n_sc, P, hist, d_cost,
-		                                          finals ? d_final : nullptr, traj ? d_traj : nullptr, traj_scen);
+		if (warp_kernel) {
+			int W; bool w_shared; size_t bytes;
+			warp_layout(n_sc, W, w_shared, bytes);
+			episode_kernel_warp<<<blocks / W, 32 * W, bytes>>>(t, d_params, w_shared, d_sc, n_sc, W, P, hist, d_cost,
+			                                                  finals ? d_final : nullptr, traj ? d_traj : nullptr, traj_scen);
+		} else {
+			episode_kernel<<<blocks, threads, smem>>>(t, d_params, shared, d_sc, n_sc, P, hist, d_cost,
+			                                          finals ? d_final : nullptr, traj ? d_traj : nullptr, traj_scen);
+		}
 		CUDA_CHECK(cudaGetLastError());
 		std::vector<float> c(blocks);
 		CUDA_CHECK(cudaMemcpy(c.data(), d_cost, blocks * sizeof(float), cudaMemcpyDeviceToHost));
@@ -200,7 +285,13 @@ int main(int argc, char** argv) {
 	int gens = 400, n_scen = 16, n_test = 1000, hist = 0;
 	float sigma_end = 0.0f;
 	bool sigma_set = false;
-	std::string out = "outputs", algo = "ga";
+	std::string out = "outputs", algo = "ga", kernel = "auto";
+	bool bench_kernels = false;
+	int warp_smem_kb = 48;
+	// real mode settings (-1 = use the real-mode default)
+	int ignitions = -1, score = -1, delay = -1;
+	float noise = -1.0f;
+	std::string init_file;
 	for (int i = 1; i < argc; ++i) {
 		std::string a = argv[i]; size_t eq = a.find('=');
 		if (eq == std::string::npos) { fprintf(stderr, "expected key=value: %s\n", a.c_str()); return 1; }
@@ -217,8 +308,17 @@ int main(int argc, char** argv) {
 		else if (k == "seed") cfg.seed = ecfg.seed = (uint32_t)std::stoul(v);
 		else if (k == "test") n_test = std::stoi(v);
 		else if (k == "out") out = v;
-		else if (k == "mode") g_hard = (v == "hard");
+		else if (k == "mode") { g_hard = (v == "hard" || v == "real"); g_real = (v == "real"); }
 		else if (k == "ship") g_ship_amp = std::stof(v);
+		else if (k == "heave") g_heave_amp = std::stof(v);
+		else if (k == "ignitions") ignitions = std::stoi(v);
+		else if (k == "score") score = std::stoi(v);
+		else if (k == "noise") noise = std::stof(v);
+		else if (k == "delay") delay = std::stoi(v);
+		else if (k == "init") init_file = v;
+		else if (k == "kernel") kernel = v;
+		else if (k == "bench_kernels") bench_kernels = (v == "1");
+		else if (k == "warp_smem_kb") warp_smem_kb = std::stoi(v);
 		else if (k == "algo") algo = v;
 		else if (k == "hist") hist = std::stoi(v);
 		else if (k == "pairs") ecfg.pairs = std::stoi(v);
@@ -233,6 +333,16 @@ int main(int argc, char** argv) {
 	if (es && !sigma_set) ecfg.sigma = 0.02f;
 	rocket::Params P;
 	P.hard = g_hard;
+	P.real = g_real;
+	if (g_real) {  // real-mode defaults, each overridable
+		P.max_ignitions = ignitions >= 0 ? ignitions : 3;
+		P.score = score >= 0 ? score : 1;
+		P.noise = noise >= 0 ? noise : 1.0f;
+		P.delay = delay >= 0 ? delay : 2;
+	} else if (ignitions >= 0 || score >= 0 || noise >= 0 || delay >= 0) {
+		fprintf(stderr, "ignitions/score/noise/delay need mode=real\n"); return 1;
+	}
+	if (P.delay > rocket::MAX_DELAY) { fprintf(stderr, "delay max is %d\n", rocket::MAX_DELAY); return 1; }
 	std::vector<int> sizes = {rocket::n_inputs(P, hist)};
 	sizes.insert(sizes.end(), hidden.begin(), hidden.end());
 	sizes.push_back(2);
@@ -240,9 +350,13 @@ int main(int argc, char** argv) {
 	const int pop_n = es ? 2 * ecfg.pairs : cfg.pop;
 
 	cudaDeviceProp prop; CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
-	printf("Booster Landing (%s mode%s) - GPU %s on %s\n", P.hard ? "HARD" : "easy",
+	printf("Booster Landing (%s mode%s) - GPU %s on %s\n", P.real ? "REAL" : (P.hard ? "HARD" : "easy"),
 	       P.hard ? (", ship sway up to " + std::to_string((int)g_ship_amp) + " m").c_str() : "",
 	       es ? "Evolution Strategies" : "genetic algorithm", prop.name);
+	if (P.real)
+		printf("real mode: engine starts %d%s, score %s, sensor noise x%g, sensor delay %d steps, deck heave up to %g m\n",
+		       P.max_ignitions, P.max_ignitions ? "" : " (unlimited)", P.score ? "safety-first" : "original",
+		       P.noise, P.delay, g_heave_amp);
 	if (es)
 		printf("network %s (%d weights)%s  pairs %d (population %d)  scenarios/gen %d  generations %d  sigma %g  lr %g%s  wd %g  seed %u\n",
 		       describe(t).c_str(), t.n_params, hist ? " +memory" : "", ecfg.pairs, pop_n, n_scen, gens, ecfg.sigma,
@@ -255,7 +369,62 @@ int main(int argc, char** argv) {
 	std::unique_ptr<Population> ga;
 	std::unique_ptr<EvolutionStrategy> ess;
 	if (es) ess.reset(new EvolutionStrategy(t, ecfg)); else ga.reset(new Population(t, cfg));
+
+	// init=<weights.txt>: start from a trained network (ES: theta = it; GA: every member = it)
+	if (!init_file.empty()) {
+		std::ifstream f(init_file);
+		std::string header;
+		if (!f || !std::getline(f, header)) { fprintf(stderr, "cannot read %s\n", init_file.c_str()); return 1; }
+		if (header.substr(0, header.find(' ')) != describe(t)) {
+			fprintf(stderr, "%s holds a %s network, but this run is %s\n", init_file.c_str(), header.c_str(), describe(t).c_str());
+			return 1;
+		}
+		std::vector<float> w0(t.n_params);
+		for (float& v : w0) if (!(f >> v)) { fprintf(stderr, "%s: too few weights\n", init_file.c_str()); return 1; }
+		if (es) {
+			CUDA_CHECK(cudaMemcpy(ess->d_theta, w0.data(), t.n_params * sizeof(float), cudaMemcpyHostToDevice));
+		} else {
+			for (int i = 0; i < cfg.pop; ++i)
+				CUDA_CHECK(cudaMemcpy(ga->d_params + (size_t)i * t.n_params, w0.data(), t.n_params * sizeof(float), cudaMemcpyHostToDevice));
+		}
+		printf("starting from %s\n", init_file.c_str());
+	}
 	Runner runner(t, P, hist);
+	// auto: warp kernel when every layer is <= 64 wide (measured 1.3-1.9x faster),
+	// block kernel for wider layers (warp kernel measured 0.8x for 128-wide)
+	runner.warp_kernel = (kernel == "warp") || (kernel == "auto" && t.max_width <= 64);
+	runner.warp_shared_limit = warp_smem_kb * 1024;
+
+	if (bench_kernels) {
+		// time the block and warp kernels on the same population and scenarios,
+		// and check they give exactly the same costs
+		Population bp(t, cfg);
+		auto sc = make_scenarios(n_scen, 1);
+		std::vector<float> res[2];
+		double sec[2];
+		for (int k = 0; k < 2; ++k) {
+			runner.warp_kernel = (k == 1);
+			runner.run(bp.d_params, cfg.pop, sc);  // warm up
+			auto b0 = std::chrono::steady_clock::now();
+			for (int r = 0; r < 3; ++r) res[k] = runner.run(bp.d_params, cfg.pop, sc);
+			sec[k] = std::chrono::duration<double>(std::chrono::steady_clock::now() - b0).count() / 3;
+		}
+		int diff = 0, big = 0;
+		double m0 = 0, m1 = 0;
+		for (size_t i = 0; i < res[0].size(); ++i) {
+			diff += res[0][i] != res[1][i];
+			big += fabsf(res[0][i] - res[1][i]) > 1.0f;  // a visibly different flight
+			m0 += res[0][i]; m1 += res[1][i];
+		}
+		int W; bool ws; size_t bytes;
+		runner.warp_layout(n_scen, W, ws, bytes);
+		printf("BENCH net=%s episodes=%d block_kernel=%.3fs warp_kernel=%.3fs speedup=%.2fx episodes_per_block=%d weights_in_shared=%d "
+		       "differ=%d differ_by_more_than_1=%d mean_cost_block=%.4f mean_cost_warp=%.4f\n",
+		       describe(t).c_str(), cfg.pop * n_scen, sec[0], sec[1], sec[0] / sec[1], W, (int)ws, diff, big,
+		       m0 / res[0].size(), m1 / res[1].size());
+		return 0;
+	}
+
 	std::ofstream f_fit(out + "/fitness.csv");
 	if (!f_fit) { fprintf(stderr, "cannot write to %s/\n", out.c_str()); return 1; }
 	f_fit << "generation,best_cost,median_cost,best_success,seconds,checkpoint_val\n";
@@ -337,16 +506,17 @@ int main(int argc, char** argv) {
 	const int traj_n = 12;
 	std::vector<float> tc = runner.run(pick, 1, test, &fin, &traj, traj_n);
 	int counts[6] = {0};
-	double fuel_used = 0, mean_cost = 0;
+	double fuel_used = 0, mean_cost = 0, ign_used = 0;
 	std::ofstream f_test(out + "/test.csv");
-	f_test << "scenario,outcome,x,vx,vy,theta_deg,fuel_used,time\n";
+	f_test << "scenario,outcome,x,vx,vy,theta_deg,fuel_used,time,ignitions\n";
 	for (int s = 0; s < n_test; ++s) {
 		const State& st = fin[s];
 		counts[st.outcome]++;
 		mean_cost += tc[s];
+		ign_used += st.ignitions;
 		if (st.outcome == rocket::LANDED) fuel_used += st.fuel0 - st.fuel;
-		f_test << s << "," << st.outcome << "," << st.x - st.pad_x << "," << st.vx - st.pad_vx << "," << st.vy << ","
-		       << st.theta * 57.2958f << "," << st.fuel0 - st.fuel << "," << st.t << "\n";
+		f_test << s << "," << st.outcome << "," << st.x - st.pad_x << "," << st.vx - st.pad_vx << "," << st.vy - st.pad_vy << ","
+		       << st.theta * 57.2958f << "," << st.fuel0 - st.fuel << "," << st.t << "," << st.ignitions << "\n";
 	}
 	std::ofstream f_traj(out + "/trajectories.csv");
 	f_traj << "scenario,step,x,y,theta,throttle,gimbal,pad_x\n";
@@ -359,7 +529,8 @@ int main(int argc, char** argv) {
 	std::vector<float> w(t.n_params);
 	CUDA_CHECK(cudaMemcpy(w.data(), pick, t.n_params * sizeof(float), cudaMemcpyDeviceToHost));
 	std::ofstream f_w(out + "/weights.txt");
-	f_w << describe(t) << (hist ? " hist" : "") << (P.hard ? " hard" : " easy") << "\n";
+	const char* mode_name = P.real ? "real" : (P.hard ? "hard" : "easy");
+	f_w << describe(t) << (hist ? " hist " : " ") << mode_name << "\n";
 	for (float v : w) f_w << v << "\n";
 
 	// check the GPU against the CPU reference on the first 200 test scenarios
@@ -378,9 +549,11 @@ int main(int argc, char** argv) {
 	       n_test, counts[1], 100.0 * counts[1] / n_test, counts[2], counts[3], counts[4], counts[5]);
 	printf("mean test cost %.2f, mean fuel used per landing %.0f kg\n", mean_cost / n_test,
 	       counts[1] ? fuel_used / counts[1] : 0.0);
+	printf("mean engine starts per flight %.2f\n", ign_used / n_test);
 	printf("GPU vs CPU reference: same outcome on %d/%d, max landing-x difference %.3g m\n", same, n_check, max_dx);
-	printf("SUMMARY algo=%s mode=%s hist=%d net=%s params=%d landed=%d test=%d crashed=%d tipped=%d oob=%d timeout=%d cost=%.3f fuel=%.1f train_s=%.1f cpu_match=%d\n",
-	       algo.c_str(), P.hard ? "hard" : "easy", hist, describe(t).c_str(), t.n_params, counts[1], n_test, counts[2],
-	       counts[3], counts[4], counts[5], mean_cost / n_test, counts[1] ? fuel_used / counts[1] : 0.0, train_secs, same);
+	printf("SUMMARY algo=%s mode=%s hist=%d net=%s params=%d landed=%d test=%d crashed=%d tipped=%d oob=%d timeout=%d cost=%.3f fuel=%.1f train_s=%.1f cpu_match=%d ignitions=%.2f\n",
+	       algo.c_str(), mode_name, hist, describe(t).c_str(), t.n_params, counts[1], n_test, counts[2],
+	       counts[3], counts[4], counts[5], mean_cost / n_test, counts[1] ? fuel_used / counts[1] : 0.0, train_secs, same,
+	       ign_used / n_test);
 	return 0;
 }

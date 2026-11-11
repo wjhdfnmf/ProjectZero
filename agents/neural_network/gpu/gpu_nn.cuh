@@ -146,6 +146,33 @@ __device__ inline const float* forward_block(const Topology& t, const float* __r
 }
 
 // ------------------------------------------------------------------
+// Warp-cooperative forward pass: one warp (32 threads) runs one network.
+// Same arithmetic, in the same order, as forward_block (so results are
+// bit-identical), but it only synchronizes the warp, so several episodes can
+// share a block (and its shared-memory copy of the weights) without waiting
+// for each other. Returns a pointer (a or b) holding the outputs.
+// ------------------------------------------------------------------
+__device__ inline const float* forward_warp(const Topology& t, const float* __restrict__ p,
+                                            const float* in, float* a, float* b, int lane) {
+	const float* x = in;
+	float* y = a;
+	for (int l = 0; l < t.n_layers; ++l) {
+		const int ni = t.size[l], no = t.size[l + 1];
+		const float* W = p + t.w_off[l];
+		const float* bias = p + t.b_off[l];
+		for (int j = lane; j < no; j += 32) {
+			float s = bias[j];
+			for (int k = 0; k < ni; ++k) s = fmaf(x[k], W[k * no + j], s);
+			y[j] = tanhf(s);
+		}
+		__syncwarp();
+		x = y;
+		y = (y == a) ? b : a;
+	}
+	return x;
+}
+
+// ------------------------------------------------------------------
 // Dataset mode: one layer for every network at once (tiled matrix multiply)
 //   X: inputs. Shared by all networks (x_net_stride = 0) or per network.
 //   Y[net][n][out] = tanh(X[net][n][in] * W[net] + b[net])
