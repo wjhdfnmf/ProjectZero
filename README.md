@@ -126,7 +126,8 @@ After training, `run_best_network()` replays the best network on a fresh pendulu
 
 ### 7. Things worth knowing about the current code
 
-- **Selection is effectively random right now.** `error_manager()` resets `pop_fitness` to zero *before* `prune()` runs. Every tournament therefore compares 0 to 0 and keeps the second pick. The best network is still tracked and replayed, but it isn't carried into the next generation (there's no elitism). Moving the reset to after `prune()` would make selection use the real scores.
+- **There's no elitism.** The best network is tracked and replayed at the end, but it isn't guaranteed a place in the next generation. It survives only if it wins a tournament.
+- **Fixed: selection used to be random.** Earlier versions reset `pop_fitness` to zero inside `error_manager()`, *before* `prune()` ran, so every tournament compared 0 to 0. The reset now happens in `train()` after `populate()`, so tournaments compare the real scores.
 - **The best network isn't saved to disk.** The code that would write `best_network.bin` is commented out in `run_best_network()`, so the `.bin` in the repo is from an earlier run.
 - **Some weights do nothing.** Each node also gets a weight to the next layer's bias node, but bias nodes ignore their input. In the 3-4-2 network, 4 of the 30 weights have no effect.
 - **The range settings aren't used.** `weight_gen_min` and `weight_gen_max` are set to −1 and 1 but never read. The actual range is the same anyway.

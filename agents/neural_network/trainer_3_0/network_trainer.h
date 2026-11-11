@@ -375,11 +375,7 @@ namespace Trainer
 		for (std::size_t i=0; i<temp_avg_fitness_all.size(); ++i) {
 			temp_avg_fitness += temp_avg_fitness_all.at(i);
 		} temp_avg_fitness = temp_avg_fitness / temp_avg_fitness_all.size();
-		// reset 'pop_fitness'
-		pop_fitness.clear();
-		for (std::size_t i=0; i<population_size; ++i) {
-			pop_fitness.push_back(0.0);
-		}
+		// note: 'pop_fitness' is reset in train() after prune() has used it
 	}
 
 	////////////////////////////////////////
@@ -488,8 +484,10 @@ namespace Trainer
 			}
 			// finish training round
 			error_manager();
-			prune();
+			prune();  // selection uses this round's pop_fitness
             populate();
+			// reset 'pop_fitness' for the next round
+			pop_fitness.assign(population_size, 0.0);
 			// progress
 			++current_round;
 			progress();
