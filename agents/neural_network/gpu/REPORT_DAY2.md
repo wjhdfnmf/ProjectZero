@@ -9,7 +9,8 @@ Today I worked through the "next steps" from [REPORT.md](REPORT.md) (night 1).
 3. **What makes it hard:** almost entirely the **engine-start limit**. With unlimited starts, the same network lands **92%**, but it uses 61 starts per flight. Sensor noise costs about 9 points; delay and heave barely matter.
 4. **The best recipe:** train a **small network in hard mode, transfer it into real mode, then fine-tune with the GA**. That raised the real-mode landing rate from **58% to 75%**, consistently across 3 seeds. The **real-mode flagship** trained this way lands **85.5%** of 1,000 unseen real-mode flights, using **2 engine starts** on average.
 5. **In real mode, small networks win.** 8–16 neurons beat 64-64 (58% vs 40%), and transfer *hurts* big networks because it carries over their engine-pulsing habit.
-6. **ES as a fine-tuner didn't help, and neither did an engine-start curriculum** (10 → 5 → 3 starts); the GA did. The curriculum made big networks worse (64-64: 20% vs 40% without it). Details below.
+6. **A live 3D visualizer** ([VISUALIZER.md](VISUALIZER.md)) flies the trained networks on the same test scenarios, with six cameras. It reproduces training's test outcomes on 200/200 flights.
+7. **ES as a fine-tuner didn't help, and neither did an engine-start curriculum** (10 → 5 → 3 starts); the GA did. The curriculum made big networks worse (64-64: 20% vs 40% without it). Details below.
 
 The problem is documented in [PROBLEM.md](PROBLEM.md), section 8 (real mode).
 
@@ -18,7 +19,7 @@ The problem is documented in [PROBLEM.md](PROBLEM.md), section 8 (real mode).
   <img src="outputs/flagship_real/descent.svg" width="49%" alt="Real-mode flagship descent">
 </p>
 
-*The real-mode flagship's first 12 test flights: paths relative to the moving pad (left), and altitude and throttle over time (right). All 12 landed.*
+*The real-mode flagship's first 12 test flights: paths relative to the moving pad (left), and altitude and throttle over time (right). 9 of the 12 landed; scenarios 0, 3 and 5 crashed.*
 
 ---
 
@@ -177,6 +178,19 @@ Stage 4 took **14 minutes**. The whole chain is about 20 minutes of GPU time for
 
 This is a different strategy from a short, hard hoverslam. It uses the booster's own changing mass to make a minimum-40% engine behave almost like a throttleable one. It costs more propellant than a hoverslam (3,078 kg), but under the safety-first score, safety is worth more.
 
+### 4.1 Two late attempts to beat it (both ties)
+
+| Attempt | Landed | Propellant | Engine starts | Training |
+|---|---|---|---|---|
+| Flagship + 1,000 more generations at **128 scenarios** per generation (σ 0.005 → 0.001) | 84.0% | 3,112 kg | 2.18 | 14 min |
+| **16-node** network through the same chain: hard 94.9% → transfer 73.1% → fine-tune 76.0% → long fine-tune | **84.5%** | **2,871 kg** | 2.39 | 20 min in total |
+
+- **The 8-node network has plateaued at about 85%.** Less noisy selection didn't move it: 84.0% vs 85.5% is within the ±1.1% noise of a 1,000-flight test.
+- **The 16-node network ties it** at every stage of the chain, using about 7% less propellant.
+- **So the limit now is the problem, not the network size or the selection noise.** The remaining failures are mostly sideways drift above 1.5 m/s at touchdown. With 3 engine starts and noisy, delayed sensors, there may simply not be enough control authority in the last few seconds to fix it. That would be the next thing to investigate.
+
+The 8-node network (85.5%) stays the real-mode flagship. Both models are in `outputs/` (`flagship_real`, `h16_real_long`).
+
 ## 5. What I deferred, and why
 
 | Next step from night 1 | Status |
@@ -191,7 +205,22 @@ This is a different strategy from a short, hard hoverslam. It uses the booster's
 | Curriculum for the engine-start limit (proposed this morning) | **Done, negative:** 10 → 5 → 3 starts made 64-64 networks worse (20% vs 40%) and didn't help 8-node ones (§3.4) |
 | Train bigger networks longer | **Done:** 64-64 for 4,800 generations reached 61.7% (from 36.1% at 800) and was still improving. Big networks catch up, but slowly. |
 
-## 6. Lessons learned today
+## 6. The 3D visualizer
+
+Added this evening, on request: a Windows desktop app that flies the trained networks **live**, in 3D, with six cameras (chase, deck, booster, orbit, 2D side view and cinematic). See **[VISUALIZER.md](VISUALIZER.md)**.
+
+<p align="center">
+  <img src="outputs/visualizer/4_deck.png" width="49%" alt="Deck camera">
+  <img src="outputs/visualizer/7_hard_pulsing.png" width="49%" alt="Hard-mode flagship landed after 84 engine starts">
+</p>
+
+*Left: the real-mode flagship 1.2 m above the drone ship (deck camera). Right: the night-1 hard-mode flagship, landed on the same scenario after **84 engine starts**. The visualizer makes the engine-pulsing loophole obvious.*
+
+- **It runs the same code as training.** It flies with the same physics and network code (on the CPU), on the same test scenarios as the reports.
+- **It's verified against training:** re-flying the first 200 test scenarios gives the same outcome as the GPU training run on **200/200** flights, for the easy, hard and real-mode flagships.
+- **The problem is still 2D;** the 3D scene is a presentation of that vertical plane.
+
+## 7. Lessons learned today
 
 1. **Make the "real" rules real, then measure which one bites.** One feature, the engine-start limit, accounted for almost all of real mode's difficulty. The ablation took 45 minutes and replaced a lot of guessing.
 2. **Bigger isn't automatically better.** It depends on the problem: big networks won hard mode, and small ones win real mode at the same budget.
@@ -201,9 +230,9 @@ This is a different strategy from a short, hard hoverslam. It uses the booster's
 6. **Gradual curricula aren't free.** Loosening a constraint lets a network build a strategy around the looser version, and that strategy may not survive the tightening. Here, training at the real constraint from the start was better.
 7. **Re-check that old results reproduce after every change.** `kernel=block` reproduced night 1 exactly all day, which is how I know the new features didn't quietly change the old problems.
 
-## 7. Next steps
+## 8. Next steps
 
-- **Push the small-network recipe further:** continue the real-mode flagship with 128 scenarios per generation, and try 16-node networks through the same hard → real → fine-tune chain. That's the most promising direction.
+- **Find out whether ~85% is the problem's ceiling.** Both late attempts tied (§4.1), so the next useful step is a hand-designed controller, or an expensive search on single scenarios, to see whether the failed scenarios are landable at all with 3 engine starts and noisy sensors.
 - **Penalize engine starts in the score,** rather than only capping them, so networks never build a strategy around relighting. A gentler alternative to the failed curriculum.
 - **Harsher, more realistic delay and heave** (0.2–0.3 s; ±3 m) so they actually test the controller.
 - **Pack several networks per warp,** so tiny networks run up to 4× faster.
@@ -224,4 +253,8 @@ This is a different strategy from a short, hard hoverslam. It uses the booster's
 # kernel benchmark
 ./rocket.exe mode=hard hidden=64,64 scen=32 bench_kernels=1
 python plot_rocket.py && python plot_rocket.py outputs/flagship_real
+# visualizer: build, verify against test.csv, then watch
+build.bat visualizer
+visualizer.exe --check 200
+visualizer.exe
 ```

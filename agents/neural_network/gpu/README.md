@@ -5,6 +5,7 @@ A GPU rewrite of Neural Network v3.0. A whole population of networks lives on th
 - **[PROBLEM.md](PROBLEM.md)** describes the landing problem in full (easy, hard and real mode).
 - **[REPORT.md](REPORT.md)** has night 1's results: the GPU rewrite, easy and hard mode.
 - **[REPORT_DAY2.md](REPORT_DAY2.md)** has day 2's results: the faster warp kernel, real mode, transfer learning, and a real-mode flagship that lands 85.5% of flights.
+- **[VISUALIZER.md](VISUALIZER.md)** covers the 3D desktop app that flies the trained networks live (`build.bat visualizer`, then `visualizer.exe`).
 
 ## Files
 
@@ -16,6 +17,7 @@ A GPU rewrite of Neural Network v3.0. A whole population of networks lives on th
 | `verify_bench.cu` | Builds networks with v3 `neural_network.h`, converts them, checks the GPU gives the same outputs, then benchmarks v3 CPU, v4 CPU and both GPU modes. |
 | `rocket.cuh` | Booster Landing physics, easy and hard mode, observations (with optional memory), commands and cost. Shared by the GPU and CPU (`__host__ __device__`). |
 | `rocket.cu` | Booster Landing trainer (`algo=ga` or `algo=es`): GPU episode kernel, CPU reference, training loop, validation, and the held-out test. All settings are listed at the top of the file. |
+| `visualizer.cu` | 3D desktop visualizer (Win32 + OpenGL): flies trained networks live, with six cameras. `--check` verifies it against `test.csv`. |
 | `day2.sh` | Day 2's real-mode experiments (sizes, transfer, ablation, fine-tuning). Resumable. |
 | `curriculum.sh` | Engine-start curriculum experiment (10 → 5 → 3 starts). Resumable. |
 | `sizes.sh` | Trains several network sizes × seeds for one setup and writes `outputs/sizes_<name>_summary.csv`. Re-running skips finished runs. |
