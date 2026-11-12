@@ -191,6 +191,33 @@ This is a different strategy from a short, hard hoverslam. It uses the booster's
 
 The 8-node network (85.5%) stays the real-mode flagship. Both models are in `outputs/` (`flagship_real`, `h16_real_long`).
 
+### 4.2 A bonus for landing quickly (doesn't speed it up)
+
+Added on request: `time_bonus=w` gives a successful landing an extra **w × (1 − flight time / 80 s)** (see [PROBLEM.md](PROBLEM.md) §5). It's off by default, and every earlier result still reproduces exactly. I tested it on real mode, 8-node network, 3 seeds per setting (`time_bonus.sh`, `outputs/time_bonus_summary.csv`):
+
+| Setting | Bonus | Landing time (seeds 1, 2, 3) | Landed |
+|---|---|---|---|
+| Fine-tune flagship, small steps | 0 (control) | 40.6, 40.6, 41.7 s | 82–85% |
+| | 10 | 41.2, 39.9, 40.1 s | 81–83% |
+| | 30 | 40.4, 40.5, 39.0 s | 81–83% |
+| Fine-tune flagship, larger steps | 0 (control) | 40.9, 40.9, 39.0 s | 77–81% |
+| | **150** | 40.7, 40.6, 40.9 s | 77–80% |
+| From scratch | 0 (control: §3.1's runs) | 39.4, 40.6, 40.2 s | 57–59% |
+| | **150** | 39.6, 38.2, 40.1 s | 50–63% |
+
+**Even a large bonus makes landings no more than about a second faster,** whether the network starts from the flagship or from scratch. The real-mode flagship itself lands in 34–51 s (median 41.5 s).
+
+**There's time to gain,** so it isn't physics. An idealized fastest landing (free-fall, then a perfectly timed full-throttle braking burn) takes only **16–27 s** from these starting conditions.
+
+**Why evolution doesn't take it:**
+- **A fast landing is a short, full-throttle hoverslam,** started late. That's a very different strategy from the long, gentle burn every real-mode network converges on.
+- **It's risky in real mode.** The engine can't throttle below 40%, needs 0.3 s to respond, and has 3 starts, while the sensors are noisy and late. A hard burn timed slightly wrong means a crash, which costs far more than a few seconds earn: with bonus 150, landing 5 s faster gains about 9 points, against a 60-point landing bonus plus a 20-point crash penalty.
+- **The long burn uses the booster's own weight.** Close to hover thrust while heavy, it slowly lightens and descends. That's what makes landing with a minimum-40% engine reliable, and it inherently takes time.
+
+**Takeaways:**
+- **To get faster landings,** the rules have to make the fast strategy safe enough, for example deeper throttling (`min_throttle`), more engine starts, or a smaller time penalty for a slightly harder touchdown. A bigger bonus alone just gets traded away for safety.
+- **Fine-tuning at 32 scenarios per generation slightly *lowers* the flagship's landing rate** (77–85%, even with no bonus, vs 85.5%). The flagship's final stage used 64 scenarios per generation; noisier evaluation lets it drift. So none of these models replaces the flagship.
+
 ## 5. What I deferred, and why
 
 | Next step from night 1 | Status |
@@ -248,6 +275,8 @@ Added this evening, on request: a Windows desktop app that flies the trained net
     init=outputs/day2/hybrid/ga_finetune_s1/weights.txt out=outputs/flagship_real
 # engine-start curriculum (resumable, ~1 h)
 ./curriculum.sh
+# time bonus (resumable, ~1 h; needs day2.sh's sizes runs as the from-scratch control)
+./time_bonus.sh
 # 64-64 long run
 ./rocket.exe mode=real algo=ga scen=32 sigma=0.03 sigma_end=0.005 hidden=64,64 seed=1 gens=4800 out=outputs/long_real_64
 # kernel benchmark

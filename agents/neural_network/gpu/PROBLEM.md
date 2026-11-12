@@ -94,6 +94,8 @@ Two outputs, each −1…1 (tanh):
 
 The cost is **graded**, so evolution gets a signal from the very first, terrible flights: crashing at 30 m/s scores better than crashing at 100 m/s. The bonus for propellant left rewards efficient flying, like a late, hard burn.
 
+**Optional bonus for landing quickly** (`time_bonus=w`, any mode, off by default): a successful landing also earns **w × (1 − flight time / 80 s)**. With w = 30, landing in 40 s earns 15 points and landing in 30 s earns 18.75. Crashes earn nothing from it, so it never rewards crashing sooner. All results before this was added used w = 0.
+
 ## 6. How a network is judged
 
 - **Training:** every generation flies a fresh batch of 16–32 random scenarios. A network's score is its average cost over the batch.

@@ -52,6 +52,7 @@ struct Model {
 	rocket::Params P;
 	int hist = 0;
 	int landed = 0, flown = 0;  // tally while viewing
+	double land_time = 0;       // sum of landing times (s)
 };
 
 static std::vector<Scenario> make_scenarios(int n, uint32_t seed, bool hard, bool real, float ship_amp = 5.0f,
@@ -434,7 +435,7 @@ static void hud(const Flight& fl) {
 	glColor4f(0, 0, 0, 0.45f);
 	glBegin(GL_QUADS);
 	glVertex2f(10, 10); glVertex2f(330, 10); glVertex2f(330, 300); glVertex2f(10, 300);
-	glVertex2f(g_w - 430.0f, 10); glVertex2f(g_w - 10.0f, 10); glVertex2f(g_w - 10.0f, 150); glVertex2f(g_w - 430.0f, 150);
+	glVertex2f(g_w - 430.0f, 10); glVertex2f(g_w - 10.0f, 10); glVertex2f(g_w - 10.0f, 170); glVertex2f(g_w - 430.0f, 170);
 	glEnd();
 	glDisable(GL_BLEND);
 
@@ -462,12 +463,13 @@ static void hud(const Flight& fl) {
 	snprintf(b, sizeof b, "camera %d: %s", g_cam, CAM_NAMES[g_cam]); rline(b);
 	snprintf(b, sizeof b, "speed x%g%s", SPEEDS[g_speed], g_paused ? "  PAUSED" : ""); rline(b);
 	snprintf(b, sizeof b, "landed %d of %d flights watched", m.landed, m.flown); rline(b, 0.7f, 1, 0.7f);
+	if (m.landed) { snprintf(b, sizeof b, "average landing time %.1f s", m.land_time / m.landed); rline(b, 0.7f, 1, 0.7f); }
 
 	if (!fl.flying()) {
 		const char* names[] = {"", "LANDED", "CRASHED", "TIPPED OVER", "OUT OF BOUNDS", "TIMEOUT"};
 		const bool ok = s.outcome == rocket::LANDED;
-		snprintf(b, sizeof b, "%s   touchdown %.2f m/s down, %.2f m/s sideways, %.1f m from center",
-		         names[s.outcome], -(s.vy - s.pad_vy), fabsf(s.vx - s.pad_vx), fabsf(s.x - s.pad_x));
+		snprintf(b, sizeof b, "%s in %.1f s   touchdown %.2f m/s down, %.2f m/s sideways, %.1f m from center",
+		         names[s.outcome], s.t, -(s.vy - s.pad_vy), fabsf(s.vx - s.pad_vx), fabsf(s.x - s.pad_x));
 		text(g_w / 2.0f - 330, g_h / 2.0f - 120, b, ok ? 0.4f : 1.0f, ok ? 1.0f : 0.4f, 0.4f);
 	}
 	if (g_help)
@@ -509,7 +511,7 @@ static void advance(double dt_real) {
 		while (g_acc >= dt && fl.flying() && guard++ < 2000) { fl.step(); g_acc -= dt; }
 		if (!fl.flying()) {
 			g_models[g_model].flown++;
-			if (fl.st.outcome == rocket::LANDED) g_models[g_model].landed++;
+			if (fl.st.outcome == rocket::LANDED) { g_models[g_model].landed++; g_models[g_model].land_time += fl.st.t; }
 		}
 	} else {
 		g_end_timer += dt_real;

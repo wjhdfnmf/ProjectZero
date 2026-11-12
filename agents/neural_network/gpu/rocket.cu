@@ -13,6 +13,7 @@
 // usage: rocket.exe [key=value ...]
 //   mode=easy      easy | hard (drone ship, 40% minimum throttle, engine lag, stronger wind)
 //   ship=5         hard mode: max drone-ship sway in m (20 = the first, unrealistic version)
+//   time_bonus=0   any mode: landings also score time_bonus x (1 - flight time / 80 s), so faster is better
 //   algo=ga        ga | es
 //   hidden=64,64   hidden layer sizes
 //   hist=0         1: network also sees the previous observation and command (short-term memory)
@@ -290,6 +291,7 @@ int main(int argc, char** argv) {
 	int warp_smem_kb = 48;
 	// real mode settings (-1 = use the real-mode default)
 	int ignitions = -1, score = -1, delay = -1;
+	float time_bonus = 0.0f;
 	float noise = -1.0f;
 	std::string init_file;
 	for (int i = 1; i < argc; ++i) {
@@ -316,6 +318,7 @@ int main(int argc, char** argv) {
 		else if (k == "noise") noise = std::stof(v);
 		else if (k == "delay") delay = std::stoi(v);
 		else if (k == "init") init_file = v;
+		else if (k == "time_bonus") time_bonus = std::stof(v);
 		else if (k == "kernel") kernel = v;
 		else if (k == "bench_kernels") bench_kernels = (v == "1");
 		else if (k == "warp_smem_kb") warp_smem_kb = std::stoi(v);
@@ -343,6 +346,8 @@ int main(int argc, char** argv) {
 		fprintf(stderr, "ignitions/score/noise/delay need mode=real\n"); return 1;
 	}
 	if (P.delay > rocket::MAX_DELAY) { fprintf(stderr, "delay max is %d\n", rocket::MAX_DELAY); return 1; }
+	P.time_bonus = time_bonus;
+	if (time_bonus > 0) printf("time bonus: successful landings earn %g x (1 - flight time / 80 s)\n", time_bonus);
 	std::vector<int> sizes = {rocket::n_inputs(P, hist)};
 	sizes.insert(sizes.end(), hidden.begin(), hidden.end());
 	sizes.push_back(2);
@@ -527,7 +532,7 @@ int main(int argc, char** argv) {
 	const int traj_n = 12;
 	std::vector<float> tc = runner.run(pick, 1, test, &fin, &traj, traj_n);
 	int counts[6] = {0};
-	double fuel_used = 0, mean_cost = 0, ign_used = 0;
+	double fuel_used = 0, mean_cost = 0, ign_used = 0, land_time = 0;
 	std::ofstream f_test(out + "/test.csv");
 	f_test << "scenario,outcome,x,vx,vy,theta_deg,fuel_used,time,ignitions\n";
 	for (int s = 0; s < n_test; ++s) {
@@ -535,7 +540,7 @@ int main(int argc, char** argv) {
 		counts[st.outcome]++;
 		mean_cost += tc[s];
 		ign_used += st.ignitions;
-		if (st.outcome == rocket::LANDED) fuel_used += st.fuel0 - st.fuel;
+		if (st.outcome == rocket::LANDED) { fuel_used += st.fuel0 - st.fuel; land_time += st.t; }
 		f_test << s << "," << st.outcome << "," << st.x - st.pad_x << "," << st.vx - st.pad_vx << "," << st.vy - st.pad_vy << ","
 		       << st.theta * 57.2958f << "," << st.fuel0 - st.fuel << "," << st.t << "," << st.ignitions << "\n";
 	}
@@ -570,11 +575,12 @@ int main(int argc, char** argv) {
 	       n_test, counts[1], 100.0 * counts[1] / n_test, counts[2], counts[3], counts[4], counts[5]);
 	printf("mean test cost %.2f, mean fuel used per landing %.0f kg\n", mean_cost / n_test,
 	       counts[1] ? fuel_used / counts[1] : 0.0);
-	printf("mean engine starts per flight %.2f\n", ign_used / n_test);
+	printf("mean engine starts per flight %.2f, mean landing time %.1f s\n", ign_used / n_test,
+	       counts[1] ? land_time / counts[1] : 0.0);
 	printf("GPU vs CPU reference: same outcome on %d/%d, max landing-x difference %.3g m\n", same, n_check, max_dx);
-	printf("SUMMARY algo=%s mode=%s hist=%d net=%s params=%d landed=%d test=%d crashed=%d tipped=%d oob=%d timeout=%d cost=%.3f fuel=%.1f train_s=%.1f cpu_match=%d ignitions=%.2f\n",
+	printf("SUMMARY algo=%s mode=%s hist=%d net=%s params=%d landed=%d test=%d crashed=%d tipped=%d oob=%d timeout=%d cost=%.3f fuel=%.1f train_s=%.1f cpu_match=%d ignitions=%.2f land_time=%.2f\n",
 	       algo.c_str(), mode_name, hist, describe(t).c_str(), t.n_params, counts[1], n_test, counts[2],
 	       counts[3], counts[4], counts[5], mean_cost / n_test, counts[1] ? fuel_used / counts[1] : 0.0, train_secs, same,
-	       ign_used / n_test);
+	       ign_used / n_test, counts[1] ? land_time / counts[1] : 0.0);
 	return 0;
 }

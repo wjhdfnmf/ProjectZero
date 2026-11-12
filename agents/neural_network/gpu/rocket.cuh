@@ -54,6 +54,8 @@ struct Params {
 	int score = 0;                 // 0 = original cost, 1 = safety first
 	float noise = 0.0f;            // sensor noise scale (1 = GNSS/IMU-like, see observe())
 	int delay = 0;                 // sensor delay in steps (2 = 0.1 s), max MAX_DELAY
+	// any mode: bonus for landing quickly (0 = off, the original scores)
+	float time_bonus = 0.0f;       // successful landing: cost -= time_bonus * (1 - flight time / 80 s)
 };
 
 // one starting situation (randomized)
@@ -248,6 +250,7 @@ __host__ __device__ inline void step(State& st, float throttle, float gimbal, co
 // cost of a finished episode (lower is better)
 //   score 0 (original): landing bonus 30 + 10 x share of propellant left
 //   score 1 (safety first): landing bonus 60 + 5 x share left; any crash +20
+//   time_bonus > 0: landing also earns time_bonus x (1 - flight time / 80 s)
 __host__ __device__ inline float cost(const State& st, const Params& P) {
 	const float dx = st.x - st.pad_x, dvx = st.vx - st.pad_vx, dvy = st.vy - st.pad_vy;  // == x, vx, vy in easy mode
 	const float dy = st.y - st.pad_y;
@@ -264,6 +267,9 @@ __host__ __device__ inline float cost(const State& st, const Params& P) {
 		} else if (st.outcome == LANDED) {
 			c -= 30.0f + 10.0f * fuel_share;  // bonus, more for fuel left
 		}
+		// optional: faster landings score better (successful landings only)
+		if (P.time_bonus > 0.0f && st.outcome == LANDED)
+			c -= P.time_bonus * fmaxf(0.0f, 1.0f - st.t / (P.max_steps * P.dt));
 		return c;
 	}
 	case TIMEOUT:
