@@ -43,6 +43,7 @@ visualizer.exe
 | **M** | Next model |
 | **Up / Down** | Speed ×0.25 … ×8 |
 | **T** | Toggle the flight-path trail |
+| **V** | Toggle the live network view |
 | **H** | Hide the help line |
 | **Mouse drag / wheel** | Orbit / zoom (switches to camera 4) |
 | **Esc** | Quit |
@@ -72,6 +73,35 @@ visualizer.exe
 **Right panel:** the model, test scenario number, camera, speed, and a running tally of landings.
 
 **After each flight:** the outcome and the touchdown speeds appear in the center of the screen.
+
+## The live network view
+
+![Live network view](outputs/visualizer/8_network_view.png)
+
+The bottom-right panel (**V** toggles it) shows the network thinking, every 0.05 s:
+- **Neurons** are colored by their current value: blue positive, red negative, white near zero.
+- **Connections** are colored by the signal they carry right now (weight × incoming activation). Brighter and more opaque means a stronger signal.
+- **Outputs** show their raw values next to "throttle" and "gimbal".
+
+For big networks, only the 500 strongest signals are drawn. The view recomputes the same math as the flight; the flight itself still uses the training code.
+
+## Recording a video
+
+```bat
+visualizer.exe --record flight.mp4 --model 2 --scenario 1
+```
+
+This plays one flight at real-time speed and encodes it to H.264 MP4 through **ffmpeg**, which must be on your `PATH`, or pass `--ffmpeg <path>`. An automatic camera director cuts between views by altitude:
+
+| Phase | Camera |
+|---|---|
+| Above 900 m | Cinematic |
+| 900–250 m | Chase |
+| 250–35 m | Deck |
+| Final 35 m | Booster |
+| After touchdown | 3.5 s orbit around the booster |
+
+Recording takes about 4 seconds per flight. Other options: `--fps 30`, `--speed 2` (faster playback), `--no-netview`.
 
 ## Command-line tools
 

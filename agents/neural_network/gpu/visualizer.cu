@@ -13,9 +13,12 @@
 //   visualizer.exe --check 200             headless: re-fly test scenarios, compare with test.csv
 //   visualizer.exe --shot out.ppm --cam 1 --time 20 --scenario 0 --model 2
 //                                          render one frame to a PPM image and exit
+//   visualizer.exe --record flight.mp4 --scenario 1 --model 2 [--fps 30] [--speed 1] [--ffmpeg path]
+//                                          record one flight with an automatic camera director (needs ffmpeg)
+//   --no-netview                           hide the live network panel
 //
 // keys:  1-6 camera   C next camera   Space pause   N / P next / previous scenario
-//        R restart    M next model    Up / Down speed    T trail    H help    Esc quit
+//        R restart    M next model    Up / Down speed    V network view   T trail   H help   Esc quit
 // mouse: drag = orbit camera (camera 4), wheel = zoom
 // --------------------
 
@@ -120,6 +123,7 @@ struct Flight {
 	std::vector<float> ba, bb;
 	std::vector<Frame> trail;
 	float thr_cmd = 0, gim = 0;
+	std::vector<std::vector<float>> acts;  // display only: every layer's values at the last step
 
 	void start(const Model* model, const Scenario& s) {
 		m = model; sc = s;
@@ -129,12 +133,31 @@ struct Flight {
 		trail.clear();
 		thr_cmd = 0; gim = 0;
 		trail.push_back({st.x, st.y, st.theta, 0, 0, st.pad_x, st.pad_y});
+		acts.assign(m->t.n_layers + 1, {});
+		for (int l = 0; l <= m->t.n_layers; ++l) acts[l].assign(m->t.size[l], 0.0f);
 	}
 	bool flying() const { return st.outcome == rocket::FLYING; }
+	// recompute every layer's activations for the live network view (same math as
+	// forward_serial; the flight itself still uses forward_serial)
+	void capture_activations() {
+		const Topology& t = m->t;
+		for (int k = 0; k < t.size[0]; ++k) acts[0][k] = in[k];
+		for (int l = 0; l < t.n_layers; ++l) {
+			const int ni = t.size[l], no = t.size[l + 1];
+			const float* W = m->w.data() + t.w_off[l];
+			const float* b = m->w.data() + t.b_off[l];
+			for (int j = 0; j < no; ++j) {
+				float s = b[j];
+				for (int k = 0; k < ni; ++k) s += acts[l][k] * W[k * no + j];
+				acts[l + 1][j] = tanhf(s);
+			}
+		}
+	}
 	void step() {
 		if (!flying()) return;
 		rocket::make_input(st, m->P, m->hist, mem, in);
 		gnn::forward_serial(m->t, m->w.data(), in, out, ba.data(), bb.data());
+		capture_activations();
 		rocket::command(out, m->P, thr_cmd, gim);
 		rocket::step(st, thr_cmd, gim, sc, m->P);
 		rocket::remember_command(st, m->P, m->hist, mem, gim);
@@ -422,6 +445,112 @@ static void set_camera(const Flight& fl, float dt_real) {
 }
 
 // ------------------------------------------------------------------
+// Live network view: neurons colored by activation, connections by the signal
+// they carry right now (weight x incoming activation)
+// ------------------------------------------------------------------
+static bool g_netview = true;
+
+static const char* const IN_EASY[] = {"x to pad", "altitude", "sideways v", "vertical v", "sin tilt", "cos tilt",
+                                      "rotation", "propellant"};
+static const char* const IN_HARD_EXTRA[] = {"deck v", "throttle"};
+static const char* const IN_REAL_EXTRA[] = {"starts left", "deck v vert"};
+
+static std::string input_name(const Model& m, int i) {
+	const int n = rocket::n_obs(m.P);
+	const bool prev = i >= n && i < 2 * n;
+	const int k = prev ? i - n : i;
+	if (i >= 2 * n) return i == 2 * n ? "prev thr cmd" : "prev gimbal";
+	std::string s = k < 8 ? IN_EASY[k] : (k < 10 ? IN_HARD_EXTRA[k - 8] : IN_REAL_EXTRA[k - 10]);
+	if (k == 1 && m.P.real) s = "height";
+	return prev ? "prev " + s : s;
+}
+
+static void act_color(float a, float alpha) {
+	const float t = std::max(-1.0f, std::min(1.0f, a));
+	if (t >= 0) glColor4f(1 - 0.8f * t, 1 - 0.45f * t, 1 - 0.1f * t, alpha);
+	else glColor4f(1 + 0.1f * t, 1 + 0.75f * t, 1 + 0.75f * t, alpha);
+}
+
+static void disc(float x, float y, float r) {
+	glBegin(GL_TRIANGLE_FAN);
+	glVertex2f(x, y);
+	for (int i = 0; i <= 14; ++i) glVertex2f(x + r * cosf(i * 2 * PI / 14), y + r * sinf(i * 2 * PI / 14));
+	glEnd();
+}
+
+static void draw_netview(const Flight& fl) {
+	const Model& m = *fl.m;
+	const Topology& t = m.t;
+	const float pw = 560, ph = 330;
+	const float x0 = g_w - pw - 10, y0 = g_h - ph - 34;
+	glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glColor4f(0, 0, 0, 0.5f);
+	glBegin(GL_QUADS);
+	glVertex2f(x0, y0); glVertex2f(x0 + pw, y0); glVertex2f(x0 + pw, y0 + ph); glVertex2f(x0, y0 + ph);
+	glEnd();
+	text(x0 + 10, y0 + 18, "live network: neuron = activation, line = signal (blue +, red -)", 0.85f, 0.85f, 0.85f);
+
+	const int L = t.n_layers + 1;
+	const float left = x0 + 120, right = x0 + pw - 135, top = y0 + 36, bottom = y0 + ph - 14;
+	auto nx = [&](int l) { return left + (right - left) * l / std::max(1, L - 1); };
+	auto ny = [&](int l, int i) {
+		const int n = t.size[l];
+		const float gap = std::min(22.0f, (bottom - top) / std::max(1, n));
+		return top + (bottom - top - gap * (n - 1)) / 2 + gap * i;
+	};
+	// connections: strongest signals only for big networks
+	struct E { float s; int l, k, j; };
+	std::vector<E> es;
+	float smax = 1e-6f;
+	for (int l = 0; l < t.n_layers; ++l) {
+		const int ni = t.size[l], no = t.size[l + 1];
+		const float* W = m.w.data() + t.w_off[l];
+		for (int k = 0; k < ni; ++k)
+			for (int j = 0; j < no; ++j) {
+				const float s = W[k * no + j] * fl.acts[l][k];
+				es.push_back({s, l, k, j});
+				smax = std::max(smax, fabsf(s));
+			}
+	}
+	if (es.size() > 500) {
+		std::nth_element(es.begin(), es.begin() + 500, es.end(), [](const E& a, const E& b) { return fabsf(a.s) > fabsf(b.s); });
+		es.resize(500);
+	}
+	glBegin(GL_LINES);
+	for (const E& e : es) {
+		const float a = fabsf(e.s) / smax;
+		if (a < 0.03f) continue;
+		if (e.s >= 0) glColor4f(0.35f, 0.6f, 1.0f, 0.15f + 0.85f * a);
+		else glColor4f(1.0f, 0.4f, 0.35f, 0.15f + 0.85f * a);
+		glVertex2f(nx(e.l), ny(e.l, e.k)); glVertex2f(nx(e.l + 1), ny(e.l + 1, e.j));
+	}
+	glEnd();
+	// neurons
+	for (int l = 0; l < L; ++l) {
+		const int n = t.size[l];
+		const float r = std::max(1.5f, std::min(7.0f, (bottom - top) / std::max(1, n) * 0.35f));
+		for (int i = 0; i < n; ++i) {
+			const float x = nx(l), y = ny(l, i);
+			glColor4f(0.1f, 0.1f, 0.1f, 1); disc(x, y, r + 1.2f);
+			act_color(fl.acts[l][i], 1); disc(x, y, r);
+		}
+	}
+	glDisable(GL_BLEND);
+	// labels and values
+	char b[64];
+	if (t.size[0] <= 16)
+		for (int i = 0; i < t.size[0]; ++i) {
+			snprintf(b, sizeof b, "%s", input_name(m, i).c_str());
+			text(x0 + 8, ny(0, i) + 5, b, 0.85f, 0.85f, 0.85f);
+		}
+	const char* outs[] = {"throttle", "gimbal"};
+	for (int j = 0; j < t.size[L - 1] && j < 2; ++j) {
+		snprintf(b, sizeof b, "%s %+.2f", outs[j], fl.acts[L - 1][j]);
+		text(nx(L - 1) + 12, ny(L - 1, j) + 5, b, 1, 0.9f, 0.5f);
+	}
+}
+
+// ------------------------------------------------------------------
 // HUD
 // ------------------------------------------------------------------
 static void hud(const Flight& fl) {
@@ -472,8 +601,9 @@ static void hud(const Flight& fl) {
 		         names[s.outcome], s.t, -(s.vy - s.pad_vy), fabsf(s.vx - s.pad_vx), fabsf(s.x - s.pad_x));
 		text(g_w / 2.0f - 330, g_h / 2.0f - 120, b, ok ? 0.4f : 1.0f, ok ? 1.0f : 0.4f, 0.4f);
 	}
+	if (g_netview) draw_netview(fl);
 	if (g_help)
-		text(14, g_h - 16.0f, "1-6 camera  C next  Space pause  N/P scenario  R restart  M model  Up/Down speed  T trail  H hide help  Esc quit",
+		text(14, g_h - 16.0f, "1-6 camera  C next  Space pause  N/P scenario  R restart  M model  Up/Down speed  V network  T trail  H help  Esc quit",
 		     0.85f, 0.85f, 0.85f);
 	glEnable(GL_DEPTH_TEST); glEnable(GL_LIGHTING); glEnable(GL_FOG);
 	glPopMatrix(); glMatrixMode(GL_PROJECTION); glPopMatrix(); glMatrixMode(GL_MODELVIEW);
@@ -552,6 +682,7 @@ static LRESULT CALLBACK wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
 		case 'M': g_model = (g_model + 1) % (int)g_models.size(); start_flight(); break;
 		case 'C': g_cam = g_cam % 6 + 1; break;
 		case 'T': g_trail = !g_trail; break;
+		case 'V': g_netview = !g_netview; break;
 		case 'H': g_help = !g_help; break;
 		default: if (wp >= '1' && wp <= '6') g_cam = (int)(wp - '0');
 		}
@@ -635,16 +766,72 @@ static int check(int n) {
 }
 
 // ------------------------------------------------------------------
+// Video export: play one flight at real time with an automatic camera
+// director and pipe the frames to ffmpeg (H.264 MP4)
+// ------------------------------------------------------------------
+static int director_camera(const Flight& fl) {
+	if (!fl.flying()) return 4;  // orbit after touchdown
+	const float h = fl.st.y - fl.st.pad_y;
+	if (h > 900) return 6;
+	if (h > 250) return 1;
+	if (h > 35) return 2;
+	return 3;
+}
+
+static int record(const std::string& path, const std::string& ffmpeg, int fps, float speed) {
+	start_flight();
+	const std::string cmd = ffmpeg + " -y -loglevel error -f rawvideo -pix_fmt rgb24 -s " + std::to_string(g_w) + "x" +
+	                        std::to_string(g_h) + " -r " + std::to_string(fps) +
+	                        " -i - -vf vflip -c:v libx264 -pix_fmt yuv420p -crf 20 \"" + path + "\"";
+	FILE* pipe = _popen(cmd.c_str(), "wb");
+	if (!pipe) { fprintf(stderr, "cannot start: %s\n", cmd.c_str()); return 1; }
+	std::vector<unsigned char> px((size_t)g_w * g_h * 3);
+	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+	glReadBuffer(GL_BACK);
+	const double frame_dt = 1.0 / fps;
+	double hold = 0;
+	int frames = 0;
+	g_orbit_dist = 130; g_orbit_pitch = 0.3f;
+	while (true) {
+		Flight& fl = g_flight;
+		if (fl.flying()) {
+			g_acc += frame_dt * speed;
+			while (g_acc >= fl.m->P.dt && fl.flying()) { fl.step(); g_acc -= fl.m->P.dt; }
+		} else {
+			hold += frame_dt;
+			g_orbit_yaw += (float)frame_dt * 0.5f;
+		}
+		g_cam = director_camera(fl);
+		render((float)frame_dt);
+		glFinish();
+		glReadPixels(0, 0, g_w, g_h, GL_RGB, GL_UNSIGNED_BYTE, px.data());
+		if (fwrite(px.data(), 1, px.size(), pipe) != px.size()) { fprintf(stderr, "ffmpeg stopped accepting frames\n"); break; }
+		++frames;
+		if (!fl.flying() && hold > 3.5) break;
+	}
+	const int rc = _pclose(pipe);
+	printf("wrote %s: %d frames (%.1f s of video), flight %.1f s, outcome %d, ffmpeg exit %d\n", path.c_str(), frames,
+	       frames / (double)fps, g_flight.st.t, g_flight.st.outcome, rc);
+	return rc == 0 ? 0 : 1;
+}
+
+// ------------------------------------------------------------------
 // main
 // ------------------------------------------------------------------
 int main(int argc, char** argv) {
 	std::vector<std::string> paths;
 	int check_n = 0, shot_cam = 1, shot_model = 0;
-	float shot_time = 0;
-	std::string shot;
+	float shot_time = 0, rec_speed = 1.0f;
+	int rec_fps = 30;
+	std::string shot, rec, ffmpeg = "ffmpeg";
 	for (int i = 1; i < argc; ++i) {
 		std::string a = argv[i];
 		if (a == "--check" && i + 1 < argc) check_n = std::stoi(argv[++i]);
+		else if (a == "--record" && i + 1 < argc) rec = argv[++i];
+		else if (a == "--ffmpeg" && i + 1 < argc) ffmpeg = argv[++i];
+		else if (a == "--fps" && i + 1 < argc) rec_fps = std::stoi(argv[++i]);
+		else if (a == "--speed" && i + 1 < argc) rec_speed = std::stof(argv[++i]);
+		else if (a == "--no-netview") g_netview = false;
 		else if (a == "--shot" && i + 1 < argc) shot = argv[++i];
 		else if (a == "--cam" && i + 1 < argc) shot_cam = std::stoi(argv[++i]);
 		else if (a == "--time" && i + 1 < argc) shot_time = std::stof(argv[++i]);
@@ -672,7 +859,12 @@ int main(int argc, char** argv) {
 
 	if (check_n > 0) return check(check_n);
 
-	if (!create_window(shot.empty())) { fprintf(stderr, "cannot create window\n"); return 1; }
+	if (!create_window(shot.empty() && rec.empty())) { fprintf(stderr, "cannot create window\n"); return 1; }
+
+	if (!rec.empty()) {
+		g_model = std::min(shot_model, (int)g_models.size() - 1);
+		return record(rec, ffmpeg, rec_fps, rec_speed);
+	}
 
 	if (!shot.empty()) {  // render one frame at a given flight time and save it
 		g_model = std::min(shot_model, (int)g_models.size() - 1);
