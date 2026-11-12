@@ -22,6 +22,7 @@ A GPU rewrite of Neural Network v3.0. A whole population of networks lives on th
 | `curriculum.sh` | Engine-start curriculum experiment (10 → 5 → 3 starts). Resumable. |
 | `time_bonus.sh` | Landing-speed bonus experiment (`time_bonus=`). Resumable. |
 | `sizes.sh` | Trains several network sizes × seeds for one setup and writes `outputs/sizes_<name>_summary.csv`. Re-running skips finished runs. |
+| `plot_weights.py` | Paints a trained network's weights (`python plot_weights.py outputs/flagship_real/weights.txt`): the network with every connection colored by sign and size, heatmaps of each weight matrix, and how strongly each input drives each output. |
 | `plot_rocket.py` | SVG plots (standard library only, reuses `../sine_trainer/plot.py`). |
 | `build.bat` | Windows build with the CUDA toolkit + Visual Studio C++ tools. |
 
