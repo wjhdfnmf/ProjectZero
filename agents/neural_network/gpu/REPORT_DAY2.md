@@ -9,7 +9,7 @@ Today I worked through the "next steps" from [REPORT.md](REPORT.md) (night 1).
 3. **What makes it hard:** almost entirely the **engine-start limit**. With unlimited starts, the same network lands **92%**, but it uses 61 starts per flight. Sensor noise costs about 9 points; delay and heave barely matter.
 4. **The best recipe:** train a **small network in hard mode, transfer it into real mode, then fine-tune with the GA**. That raised the real-mode landing rate from **58% to 75%**, consistently across 3 seeds. The **real-mode flagship** trained this way lands **85.5%** of 1,000 unseen real-mode flights, using **2 engine starts** on average.
 5. **In real mode, small networks win.** 8–16 neurons beat 64-64 (58% vs 40%), and transfer *hurts* big networks because it carries over their engine-pulsing habit.
-6. **ES as a fine-tuner and memory didn't help;** the GA did. Details below.
+6. **ES as a fine-tuner didn't help, and neither did an engine-start curriculum** (10 → 5 → 3 starts); the GA did. The curriculum made big networks worse (64-64: 20% vs 40% without it). Details below.
 
 The problem is documented in [PROBLEM.md](PROBLEM.md), section 8 (real mode).
 
@@ -128,6 +128,26 @@ All runs: GA, population 1,024, 32 scenarios per generation, σ annealed 0.03 �
 
 **GA fine-tuning gains 6–7 points on every seed; ES gives no consistent gain.** That's the third test in which ES lost to the GA on this problem, this time in the local-refinement role it's usually best at. The likely reason is the same each time: fitness here is a few dozen all-or-nothing landings per generation, which makes ES's gradient estimate very noisy, while GA selection with elitism only needs to rank candidates.
 
+### 3.4 An engine-start curriculum (doesn't help)
+
+**The idea:** big networks fail because they learn to rely on many engine starts. So loosen the limit and tighten it gradually: 400 generations each at 10, then 5, then 3 starts (`curriculum.sh`, 3 seeds).
+
+![Curriculum](outputs/curriculum.svg)
+
+| Variant | 10 starts | 5 starts | **3 starts (final)** | For comparison: 3 starts from the beginning, 800 gens |
+|---|---|---|---|---|
+| 64-64 from scratch | 64.1% | 38.5% | **20.2%** (24.7, 19.4, 20.2) | 40.1% |
+| 64-64 transferred from hard mode | 61.6% | 35.5% | **20.7%** (20.7, 15.0, 25.1) | 30.3% |
+| 8 from scratch | 66.9% | 65.9% | **58.1%** (58.1, 71.9, 48.2) | 58.4% |
+
+(Medians of 3 seeds; per-seed values in brackets.)
+
+- **Clear negative result.** With 10 starts, the big networks do well (64%), so starts aren't their problem when they're plentiful.
+- **Every tightening knocks them down,** and 400 generations per stage isn't enough to recover. After 1,200 generations in total they end *worse* than networks trained at 3 starts for 800 generations from the start.
+- **The 8-node network ends level with training from scratch,** just with more variation between seeds.
+
+**Why:** with 10 starts allowed, both sizes build strategies around relighting: 64-64 networks used 6.8–9.0 starts, and 8-node networks 6.4–7.5. The difference is how fast they re-adapt. When the limit drops, the 8-node networks find a new strategy within 400 generations, and the 64-64 networks don't. That matches what we saw everywhere else in real mode: big networks learn this problem slowly. A gentler schedule (more stages, more generations each) might still work, but it would cost more than just training small. I didn't run 1,200-generation from-scratch controls, because the curriculum already loses to 800-generation training.
+
 ## 4. The real-mode flagship
 
 **Training path** (each stage starts from the previous one's network):
@@ -168,6 +188,7 @@ This is a different strategy from a short, hard hoverslam. It uses the booster's
 | Deck heave | **Done** (`heave=1.5`). Deck pitch is not done. |
 | Hybrid training | **Done as transfer + fine-tuning** (GA works, ES doesn't). Full gradient fine-tuning through *differentiable physics* is not done: it needs a backward pass through the network and the simulator for every step of 1,000-step flights, which is days of work. With only 122 weights, it's also not clearly needed. |
 | Landing legs, 3D | **Not done.** 3D roughly doubles the state and actions and needs quaternion attitude; landing legs need contact dynamics. Each is a project of its own. |
+| Curriculum for the engine-start limit (proposed this morning) | **Done, negative:** 10 → 5 → 3 starts made 64-64 networks worse (20% vs 40%) and didn't help 8-node ones (§3.4) |
 | Train bigger networks longer | **Done:** 64-64 for 4,800 generations reached 61.7% (from 36.1% at 800) and was still improving. Big networks catch up, but slowly. |
 
 ## 6. Lessons learned today
@@ -177,11 +198,13 @@ This is a different strategy from a short, hard hoverslam. It uses the booster's
 3. **Transfer carries over habits.** It helped the small networks a lot, and trapped the big ones in an engine-pulsing strategy that no longer works.
 4. **Train in stages:** a forgiving problem first, then the strict one, then fine-tune. This was the single biggest gain of the day (58% → 75%).
 5. **ES lost again**, this time as a fine-tuner. On noisy, all-or-nothing objectives, simple GA selection with elitism has been the more reliable optimizer here.
-6. **Re-check that old results reproduce after every change.** `kernel=block` reproduced night 1 exactly all day, which is how I know the new features didn't quietly change the old problems.
+6. **Gradual curricula aren't free.** Loosening a constraint lets a network build a strategy around the looser version, and that strategy may not survive the tightening. Here, training at the real constraint from the start was better.
+7. **Re-check that old results reproduce after every change.** `kernel=block` reproduced night 1 exactly all day, which is how I know the new features didn't quietly change the old problems.
 
 ## 7. Next steps
 
-- **A curriculum for the engine-start limit:** train with 10 starts, then 6, then 3, so networks unlearn pulsing gradually instead of all at once. That should let bigger networks benefit from transfer too.
+- **Push the small-network recipe further:** continue the real-mode flagship with 128 scenarios per generation, and try 16-node networks through the same hard → real → fine-tune chain. That's the most promising direction.
+- **Penalize engine starts in the score,** rather than only capping them, so networks never build a strategy around relighting. A gentler alternative to the failed curriculum.
 - **Harsher, more realistic delay and heave** (0.2–0.3 s; ±3 m) so they actually test the controller.
 - **Pack several networks per warp,** so tiny networks run up to 4× faster.
 - **More scenarios per generation for the final stage** (64–128), since the remaining failures are near-misses, and noisy evaluation makes those hard to tell apart.
@@ -194,6 +217,8 @@ This is a different strategy from a short, hard hoverslam. It uses the booster's
 # real-mode flagship (needs day2.sh's hybrid run)
 ./rocket.exe mode=real algo=ga scen=64 sigma=0.01 sigma_end=0.002 hidden=8 seed=1 gens=2000 \
     init=outputs/day2/hybrid/ga_finetune_s1/weights.txt out=outputs/flagship_real
+# engine-start curriculum (resumable, ~1 h)
+./curriculum.sh
 # 64-64 long run
 ./rocket.exe mode=real algo=ga scen=32 sigma=0.03 sigma_end=0.005 hidden=64,64 seed=1 gens=4800 out=outputs/long_real_64
 # kernel benchmark

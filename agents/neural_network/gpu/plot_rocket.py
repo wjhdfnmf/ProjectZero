@@ -208,6 +208,22 @@ def plot_day2():
              [names[n] + [0] * (n_seeds - len(names[n])) for n in ns], "% landed", fmt="{:.1f}")
 
 
+def plot_curriculum():
+    """curriculum.sh: median % landed after each stage (10, 5, 3 engine starts)"""
+    f = HERE / "outputs" / "curriculum_summary.csv"
+    if not f.exists():
+        return
+    by = {}
+    for r in rows(f):
+        by.setdefault(r["variant"], {}).setdefault(int(r["stage"]), []).append(100 * int(r["landed"]) / int(r["test"]))
+    labels = {"h64_scratch": "64-64 from scratch", "h64_transfer": "64-64 transferred", "h8_scratch": "8 from scratch"}
+    med = lambda v: sorted(v)[len(v) // 2]
+    vs = list(by.keys())
+    bars("curriculum.svg", "Engine-start curriculum: median % landed after each stage",
+         [labels.get(v, v) for v in vs], ["10 starts", "5 starts", "3 starts (final)"],
+         [[med(by[v].get(s, [0])) for s in (1, 2, 3)] for v in vs], "% landed", fmt="{:.1f}")
+
+
 if __name__ == "__main__":
     run = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "outputs"
     if (run / "trajectories.csv").exists():
@@ -218,3 +234,4 @@ if __name__ == "__main__":
             plot_sizes(g)
         plot_compare(["ga_hard5", "es_hard5", "ga_hard5_mem"])
         plot_day2()
+        plot_curriculum()

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="420" viewBox="0 0 760 420" font-family="sans-serif" font-size="12">
+<rect width="760" height="420" fill="white"/>
+<text x="380.0" y="28" font-size="16" font-weight="bold" text-anchor="middle">Engine-start curriculum: median % landed after each stage</text>
+<text x="18" y="195.0" text-anchor="middle" transform="rotate(-90 18 195.0)">% landed</text>
+<line x1="80" y1="340.0" x2="740" y2="340.0" stroke="#eee"/>
+<text x="74" y="344.0" text-anchor="end">0</text>
+<line x1="80" y1="282.0" x2="740" y2="282.0" stroke="#eee"/>
+<text x="74" y="286.0" text-anchor="end">15</text>
+<line x1="80" y1="224.0" x2="740" y2="224.0" stroke="#eee"/>
+<text x="74" y="228.0" text-anchor="end">29</text>
+<line x1="80" y1="166.0" x2="740" y2="166.0" stroke="#eee"/>
+<text x="74" y="170.0" text-anchor="end">44</text>
+<line x1="80" y1="108.0" x2="740" y2="108.0" stroke="#eee"/>
+<text x="74" y="112.0" text-anchor="end">59</text>
+<line x1="80" y1="50.0" x2="740" y2="50.0" stroke="#eee"/>
+<text x="74" y="54.0" text-anchor="end">74</text>
+<rect x="102.0" y="87.4" width="56.7" height="252.6" fill="#bdbdbd"/>
+<text x="131.3" y="84.4" text-anchor="middle" font-size="9">64.1</text>
+<rect x="160.7" y="188.3" width="56.7" height="151.7" fill="#74a9cf"/>
+<text x="190.0" y="185.3" text-anchor="middle" font-size="9">38.5</text>
+<rect x="219.3" y="260.4" width="56.7" height="79.6" fill="#0570b0"/>
+<text x="248.7" y="257.4" text-anchor="middle" font-size="9">20.2</text>
+<text x="190.0" y="356" text-anchor="middle">64-64 from scratch</text>
+<rect x="322.0" y="97.2" width="56.7" height="242.8" fill="#bdbdbd"/>
+<text x="351.3" y="94.2" text-anchor="middle" font-size="9">61.6</text>
+<rect x="380.7" y="200.1" width="56.7" height="139.9" fill="#74a9cf"/>
+<text x="410.0" y="197.1" text-anchor="middle" font-size="9">35.5</text>
+<rect x="439.3" y="258.4" width="56.7" height="81.6" fill="#0570b0"/>
+<text x="468.7" y="255.4" text-anchor="middle" font-size="9">20.7</text>
+<text x="410.0" y="356" text-anchor="middle">64-64 transferred</text>
+<rect x="542.0" y="76.4" width="56.7" height="263.6" fill="#bdbdbd"/>
+<text x="571.3" y="73.4" text-anchor="middle" font-size="9">66.9</text>
+<rect x="600.7" y="80.3" width="56.7" height="259.7" fill="#74a9cf"/>
+<text x="630.0" y="77.3" text-anchor="middle" font-size="9">65.9</text>
+<rect x="659.3" y="111.0" width="56.7" height="229.0" fill="#0570b0"/>
+<text x="688.7" y="108.0" text-anchor="middle" font-size="9">58.1</text>
+<text x="630.0" y="356" text-anchor="middle">8 from scratch</text>
+<rect x="80" y="390" width="14" height="14" fill="#bdbdbd"/>
+<text x="100" y="401">10 starts</text>
+<rect x="250" y="390" width="14" height="14" fill="#74a9cf"/>
+<text x="270" y="401">5 starts</text>
+<rect x="420" y="390" width="14" height="14" fill="#0570b0"/>
+<text x="440" y="401">3 starts (final)</text>
+<line x1="80" y1="340" x2="740" y2="340" stroke="#333"/>
+</svg>

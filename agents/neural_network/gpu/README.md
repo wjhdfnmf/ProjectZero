@@ -17,6 +17,7 @@ A GPU rewrite of Neural Network v3.0. A whole population of networks lives on th
 | `rocket.cuh` | Booster Landing physics, easy and hard mode, observations (with optional memory), commands and cost. Shared by the GPU and CPU (`__host__ __device__`). |
 | `rocket.cu` | Booster Landing trainer (`algo=ga` or `algo=es`): GPU episode kernel, CPU reference, training loop, validation, and the held-out test. All settings are listed at the top of the file. |
 | `day2.sh` | Day 2's real-mode experiments (sizes, transfer, ablation, fine-tuning). Resumable. |
+| `curriculum.sh` | Engine-start curriculum experiment (10 → 5 → 3 starts). Resumable. |
 | `sizes.sh` | Trains several network sizes × seeds for one setup and writes `outputs/sizes_<name>_summary.csv`. Re-running skips finished runs. |
 | `plot_rocket.py` | SVG plots (standard library only, reuses `../sine_trainer/plot.py`). |
 | `build.bat` | Windows build with the CUDA toolkit + Visual Studio C++ tools. |
