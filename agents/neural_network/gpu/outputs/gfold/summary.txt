@@ -1,0 +1,4 @@
+G-FOLD alone, real mode, 1000 test flights (seed 424242)
+landed 261 (26.1%), crashed 697, tipped 8, out of bounds 0, timeout 34
+landed flights: average propellant used 3072 kg, average landing time 41.3 s
+computer: 51.3 plans and 800 convex solves per flight, 29149 ms per flight on average (max 61547 ms), 1236.5 s total on 24 threads

@@ -16,6 +16,8 @@
 //   visualizer.exe --record flight.mp4 --scenario 1 --model 2 [--fps 30] [--speed 1] [--ffmpeg path]
 //                                          record one flight with an automatic camera director (needs ffmpeg)
 //   --no-netview                           hide the live network panel
+//   --gfold                                also fly the G-FOLD flight computer (gfold.h, no network) as a model
+//   --gfold-only                           only G-FOLD
 //
 // keys:  1-6 camera   C next camera   Space pause   N / P next / previous scenario
 //        R restart    M next model    Up / Down speed    V network view   T trail   H help   Esc quit
@@ -30,6 +32,7 @@
 
 #include "gpu_nn.cuh"
 #include "rocket.cuh"
+#include "gfold.h"
 
 #include <cmath>
 #include <cstdio>
@@ -54,6 +57,7 @@ struct Model {
 	std::vector<float> w;
 	rocket::Params P;
 	int hist = 0;
+	bool gfold = false;         // the G-FOLD flight computer instead of a network
 	int landed = 0, flown = 0;  // tally while viewing
 	double land_time = 0;       // sum of landing times (s)
 };
@@ -124,15 +128,21 @@ struct Flight {
 	std::vector<Frame> trail;
 	float thr_cmd = 0, gim = 0;
 	std::vector<std::vector<float>> acts;  // display only: every layer's values at the last step
+	// G-FOLD model: the flight computer, and its current plan in world coordinates
+	gfold::Guidance g;
+	int plans_seen = 0;
+	std::vector<float> plan_xy;
+	double plan_ms = 0;  // computer time of the last step (ms)
 
 	void start(const Model* model, const Scenario& s) {
 		m = model; sc = s;
 		st = rocket::start(sc);
-		ba.assign(m->t.max_width, 0); bb.assign(m->t.max_width, 0);
 		for (float& v : mem) v = 0;
 		trail.clear();
 		thr_cmd = 0; gim = 0;
 		trail.push_back({st.x, st.y, st.theta, 0, 0, st.pad_x, st.pad_y});
+		if (m->gfold) { g.reset(m->P); plans_seen = 0; plan_xy.clear(); acts.clear(); return; }
+		ba.assign(m->t.max_width, 0); bb.assign(m->t.max_width, 0);
 		acts.assign(m->t.n_layers + 1, {});
 		for (int l = 0; l <= m->t.n_layers; ++l) acts[l].assign(m->t.size[l], 0.0f);
 	}
@@ -155,6 +165,25 @@ struct Flight {
 	}
 	void step() {
 		if (!flying()) return;
+		if (m->gfold) {  // the same sensors the network sees, the same physics
+			rocket::make_input(st, m->P, 0, mem, in);
+			LARGE_INTEGER f0, a, b;
+			QueryPerformanceFrequency(&f0); QueryPerformanceCounter(&a);
+			g.act(in, st.t, thr_cmd, gim);
+			QueryPerformanceCounter(&b);
+			plan_ms = 1000.0 * (b.QuadPart - a.QuadPart) / f0.QuadPart;
+			if (g.plans != plans_seen && g.plan.ok) {  // new plan: keep it in world coordinates
+				plans_seen = g.plans;
+				plan_xy.clear();
+				for (int k = 0; k <= g.plan.N; ++k) {
+					plan_xy.push_back(st.pad_x + (float)g.plan.x[k]);
+					plan_xy.push_back(st.pad_y + (float)g.plan.y[k]);
+				}
+			}
+			rocket::step(st, thr_cmd, gim, sc, m->P);
+			trail.push_back({st.x, st.y, st.theta, st.thr, gim, st.pad_x, st.pad_y});
+			return;
+		}
 		rocket::make_input(st, m->P, m->hist, mem, in);
 		gnn::forward_serial(m->t, m->w.data(), in, out, ba.data(), bb.data());
 		capture_activations();
@@ -371,6 +400,23 @@ static void draw_trail(const std::vector<Frame>& tr) {
 	glEnable(GL_LIGHTING);
 }
 
+// G-FOLD's current plan: the path it intends to fly to the pad (cyan), with its nodes
+static void draw_plan(const std::vector<float>& xy) {
+	if (xy.size() < 4) return;
+	glDisable(GL_LIGHTING);
+	glLineWidth(2.5f);
+	glColor3f(0.2f, 0.95f, 1.0f);
+	glBegin(GL_LINE_STRIP);
+	for (size_t i = 0; i + 1 < xy.size(); i += 2) glVertex3f(xy[i], xy[i + 1], 0.5f);
+	glEnd();
+	glPointSize(5);
+	glBegin(GL_POINTS);
+	for (size_t i = 0; i + 1 < xy.size(); i += 2) glVertex3f(xy[i], xy[i + 1], 0.5f);
+	glEnd();
+	glPointSize(1); glLineWidth(1);
+	glEnable(GL_LIGHTING);
+}
+
 static void draw_wind(float x, float y, float wind) {
 	// a streak of arrows beside the booster, moving with the wind
 	glDisable(GL_LIGHTING);
@@ -550,6 +596,59 @@ static void draw_netview(const Flight& fl) {
 	}
 }
 
+// G-FOLD panel: what the flight computer is doing, and its plan's throttle and tilt profile
+static void draw_gfold_panel(const Flight& fl) {
+	const gfold::Guidance& g = fl.g;
+	const float pw = 560, ph = 250;
+	const float x0 = g_w - pw - 10, y0 = g_h - ph - 34;
+	glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glColor4f(0, 0, 0, 0.5f);
+	glBegin(GL_QUADS);
+	glVertex2f(x0, y0); glVertex2f(x0 + pw, y0); glVertex2f(x0 + pw, y0 + ph); glVertex2f(x0, y0 + ph);
+	glEnd();
+	glDisable(GL_BLEND);
+	char b[180];
+	float y = y0 + 20;
+	auto line = [&](const char* s0, float r = 0.9f, float gg = 0.9f, float bl = 0.9f) { text(x0 + 10, y, s0, r, gg, bl); y += 19; };
+	snprintf(b, sizeof b, "G-FOLD flight computer: %s", gfold::phase_name(g.phase)); line(b, 0.3f, 0.95f, 1.0f);
+	const double tgo = g.plan.ok ? g.plan.tf - (fl.st.t - g.plan_t0) : 0;
+	if (g.plan.ok && (g.phase == gfold::BURN || g.phase == gfold::TERMINAL)) {
+		snprintf(b, sizeof b, "plan: %.1f s to touchdown, %.0f kg propellant, miss %.1f m", std::max(0.0, tgo), g.plan.fuel, g.plan.miss);
+		line(b);
+	} else if (g.phase == gfold::COAST) {
+		snprintf(b, sizeof b, "coasting: testing ignition every 0.5 s (window %s)", g.window_open ? "open" : "not open yet");
+		line(b);
+	} else line("divert burn: setting the sideways speed for the coast");
+	snprintf(b, sizeof b, "convex solves %d, plans %d, last step %.1f ms", g.solves, g.plans, fl.plan_ms); line(b);
+	snprintf(b, sizeof b, "estimate %.0f m up %+.1f m, v %+.1f/%+.1f m/s, disturb. %+.2f/%+.2f", g.py, g.px, g.vx,
+	         g.vy, g.D.dx, g.D.dy);
+	line(b, 0.8f, 0.8f, 0.8f);
+	if (g.plan.ok) {  // planned throttle per step (bars) and thrust tilt (line)
+		const float bx = x0 + 14, by = y0 + ph - 14, bw = pw - 28, bh = 110;
+		text(bx, by - bh - 6, "plan: throttle per step (bars), thrust tilt (line, +-15 deg)", 0.75f, 0.75f, 0.75f);
+		const int N = g.plan.N;
+		glBegin(GL_QUADS);
+		for (int k = 0; k < N; ++k) {
+			const double a = std::sqrt(g.plan.ux[k] * g.plan.ux[k] + g.plan.uy[k] * g.plan.uy[k]);
+			const float thr = (float)std::min(1.0, a * g.plan.m[k] / g.P.max_thrust);
+			const float xa = bx + bw * k / N + 1, xb = bx + bw * (k + 1) / N - 1;
+			glColor3f(1.0f, 0.6f, 0.2f);
+			glVertex2f(xa, by); glVertex2f(xb, by); glVertex2f(xb, by - bh * thr); glVertex2f(xa, by - bh * thr);
+		}
+		glEnd();
+		glColor3f(0.3f, 0.95f, 1.0f);
+		glBegin(GL_LINE_STRIP);
+		for (int k = 0; k < N; ++k) {
+			const float tilt = (float)std::atan2(g.plan.ux[k], g.plan.uy[k]) / (15 * PI / 180);
+			glVertex2f(bx + bw * (k + 0.5f) / N, by - bh / 2 - bh / 2 * std::max(-1.0f, std::min(1.0f, tilt)));
+		}
+		glEnd();
+		const float f = (float)std::max(0.0, std::min(1.0, (fl.st.t - g.plan_t0) / g.plan.tf));  // where we are
+		glColor3f(1, 1, 1);
+		glBegin(GL_LINES); glVertex2f(bx + bw * f, by); glVertex2f(bx + bw * f, by - bh); glEnd();
+	}
+}
+
 // ------------------------------------------------------------------
 // HUD
 // ------------------------------------------------------------------
@@ -601,7 +700,7 @@ static void hud(const Flight& fl) {
 		         names[s.outcome], s.t, -(s.vy - s.pad_vy), fabsf(s.vx - s.pad_vx), fabsf(s.x - s.pad_x));
 		text(g_w / 2.0f - 330, g_h / 2.0f - 120, b, ok ? 0.4f : 1.0f, ok ? 1.0f : 0.4f, 0.4f);
 	}
-	if (g_netview) draw_netview(fl);
+	if (g_netview) { if (m.gfold) draw_gfold_panel(fl); else draw_netview(fl); }
 	if (g_help)
 		text(14, g_h - 16.0f, "1-6 camera  C next  Space pause  N/P scenario  R restart  M model  Up/Down speed  V network  T trail  H help  Esc quit",
 		     0.85f, 0.85f, 0.85f);
@@ -625,6 +724,7 @@ static void render(float dt_real) {
 	draw_ocean(!ship);
 	draw_ship(s.pad_x, s.pad_y, ship);
 	if (g_trail) draw_trail(fl.trail);
+	if (fl.m->gfold && fl.flying()) draw_plan(fl.plan_xy);
 	draw_shadow(s.x, s.y, (fabsf(s.x - s.pad_x) < 50) ? s.pad_y : 0.0f);
 	draw_booster(s.x, s.y, s.theta, s.thr, fl.gim, s.y - s.pad_y < 150, s.t);
 	draw_wind(s.x, s.y, fl.wind());
@@ -824,6 +924,7 @@ int main(int argc, char** argv) {
 	float shot_time = 0, rec_speed = 1.0f;
 	int rec_fps = 30;
 	std::string shot, rec, ffmpeg = "ffmpeg";
+	bool add_gfold = false, gfold_only = false;
 	for (int i = 1; i < argc; ++i) {
 		std::string a = argv[i];
 		if (a == "--check" && i + 1 < argc) check_n = std::stoi(argv[++i]);
@@ -832,6 +933,8 @@ int main(int argc, char** argv) {
 		else if (a == "--fps" && i + 1 < argc) rec_fps = std::stoi(argv[++i]);
 		else if (a == "--speed" && i + 1 < argc) rec_speed = std::stof(argv[++i]);
 		else if (a == "--no-netview") g_netview = false;
+		else if (a == "--gfold") add_gfold = true;
+		else if (a == "--gfold-only") { add_gfold = true; gfold_only = true; }
 		else if (a == "--shot" && i + 1 < argc) shot = argv[++i];
 		else if (a == "--cam" && i + 1 < argc) shot_cam = std::stoi(argv[++i]);
 		else if (a == "--time" && i + 1 < argc) shot_time = std::stof(argv[++i]);
@@ -839,7 +942,7 @@ int main(int argc, char** argv) {
 		else if (a == "--model" && i + 1 < argc) shot_model = std::stoi(argv[++i]);
 		else paths.push_back(a);
 	}
-	if (paths.empty()) {
+	if (paths.empty() && !gfold_only) {
 		// default: the three flagship models, relative to this program's folder
 		char exe[MAX_PATH]; GetModuleFileNameA(nullptr, exe, MAX_PATH);
 		std::string dir(exe); dir = dir.substr(0, dir.find_last_of("\\/") + 1);
@@ -850,6 +953,16 @@ int main(int argc, char** argv) {
 		Model m; std::string err;
 		if (load_model(p, m, err)) g_models.push_back(m);
 		else fprintf(stderr, "skipping: %s\n", err.c_str());
+	}
+	if (add_gfold) {  // the G-FOLD flight computer in real mode; check() compares with outputs/gfold/test.csv
+		char exe[MAX_PATH]; GetModuleFileNameA(nullptr, exe, MAX_PATH);
+		std::string dir(exe); dir = dir.substr(0, dir.find_last_of("\\/") + 1);
+		Model m;
+		m.gfold = true;
+		m.P.hard = m.P.real = true; m.P.max_ignitions = 3; m.P.score = 1; m.P.noise = 1.0f; m.P.delay = 2;
+		m.path = dir + "outputs/gfold/plan";
+		m.name = "real mode, G-FOLD (no network)";
+		g_models.push_back(m);
 	}
 	if (g_models.empty()) { fprintf(stderr, "no models loaded\n"); return 1; }
 	g_test[0] = make_scenarios(1000, 424242u, false, false);

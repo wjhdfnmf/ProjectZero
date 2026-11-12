@@ -30,6 +30,44 @@ def rows(path):
 
 def plot_run(run):
     plot.OUT = run
+    if (run / "fitness.csv").exists():  # (G-FOLD runs have no training curve)
+        plot_fitness(run)
+    plot_paths(run)
+
+
+def plot_gfold_plans(run, scenario):
+    """one G-FOLD flight: the path flown (black) and every plan it made on the way (cyan, later = darker)"""
+    plot.OUT = run
+    traj = [r for r in rows(run / "trajectories.csv") if int(r["scenario"]) == scenario]
+    plans = {}
+    for r in rows(run / "plans.csv"):
+        if int(r["scenario"]) == scenario:
+            plans.setdefault(int(r["plan"]), []).append(r)
+    if not traj or not plans:
+        return
+    xs = [float(p["x"]) - float(p["pad_x"]) for p in traj]
+    ys = [float(p["y"]) for p in traj]
+    lo, hi = min(min(xs), 0) - 50, max(max(xs), 0) + 50
+    ytop = max(ys) * 1.05
+    c = Chart(f"G-FOLD, test flight #{scenario}: the path flown and every plan along the way", "x relative to pad (m)",
+              "altitude (m)", (lo, hi), (0, ytop))
+    step = max(50, round((hi - lo) / 5, -1))
+    c.axes([round(lo / step) * step + step * i for i in range(7) if round(lo / step) * step + step * i <= hi],
+           range(0, int(ytop) + 1, max(100, int(ytop / 5) // 100 * 100)))
+    n = len(plans)
+    for i, (k, pts) in enumerate(sorted(plans.items())):
+        shade = 0.25 + 0.75 * i / max(1, n - 1)
+        col = "#%02x%02x%02x" % (int(150 * (1 - shade)), int(200 - 80 * shade), int(255 - 60 * shade))
+        c.line([float(p["x"]) for p in pts], [float(p["y"]) + float(p["pad_y"]) for p in pts], col,
+               "G-FOLD plans (re-solved every 0.5 s)" if i == 0 else "", 1)
+        if i:
+            c.legend.pop()
+    c.line(xs, ys, "#000", "path flown", 2.5)
+    c.line([-15, 15], [3, 3], "#d73027", "landing pad", 6)
+    c.save(f"plans_{scenario}.svg")
+
+
+def plot_fitness(run):
     fit = rows(run / "fitness.csv")
     g = [float(r["generation"]) for r in fit]
     best = [float(r["best_cost"]) for r in fit]
@@ -41,6 +79,8 @@ def plot_run(run):
     c.line(g, best, "#d7301f", "best network")
     c.save("fitness.svg")
 
+
+def plot_paths(run):
     traj = rows(run / "trajectories.csv")
     test = {int(r["scenario"]): r for r in rows(run / "test.csv")}
     by = {}
@@ -224,6 +264,32 @@ def plot_curriculum():
          [[med(by[v].get(s, [0])) for s in (1, 2, 3)] for v in vs], "% landed", fmt="{:.1f}")
 
 
+def plot_gfold():
+    """gfold.sh: G-FOLD alone vs networks without G-FOLD vs networks that learned from it"""
+    f = HERE / "outputs" / "gfold_summary.csv"
+    g = HERE / "outputs" / "gfold" / "summary.txt"
+    d2 = HERE / "outputs" / "day2_summary.csv"
+    if not (f.exists() and g.exists() and d2.exists()):
+        return
+    gf = float(g.read_text().split("landed ")[1].split("(")[1].split("%")[0])
+    med = lambda v: sorted(v)[len(v) // 2] if v else 0
+    pct = lambda r: 100 * int(r["landed"]) / int(r["test"])
+    by = {}
+    for r in rows(f):
+        by.setdefault((r["group"], r["name"]), []).append(pct(r))
+    scratch = {}
+    for r in rows(d2):
+        if r["group"] == "sizes":
+            scratch.setdefault(r["name"], []).append(pct(r))
+    groups = ["G-FOLD alone", "8-node network", "64-64 network"]
+    series = ["G-FOLD (no network)", "GA from scratch (no G-FOLD)", "imitation only", "imitation + GA"]
+    values = [[gf, 0, 0, 0],
+              [0, med(scratch.get("h8", [])), med(by.get(("bc_only", "h8"), [])), med(by.get(("bc_ga", "h8"), []))],
+              [0, med(scratch.get("h64x64", [])), med(by.get(("bc_only", "h64x64"), [])), med(by.get(("bc_ga", "h64x64"), []))]]
+    bars("gfold_compare.svg", "Real mode, 1,000 test flights: % landed (median of 3 seeds)", groups, series, values,
+         "% landed", fmt="{:.1f}")
+
+
 if __name__ == "__main__":
     run = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "outputs"
     if (run / "trajectories.csv").exists():
@@ -235,3 +301,10 @@ if __name__ == "__main__":
         plot_compare(["ga_hard5", "es_hard5", "ga_hard5_mem"])
         plot_day2()
         plot_curriculum()
+        plot_gfold()
+        gf = HERE / "outputs" / "gfold"
+        if (gf / "trajectories.csv").exists():  # G-FOLD alone: paths, and its plans on the first landed flights
+            plot_run(gf)
+            landed = [int(r["scenario"]) for r in rows(gf / "test.csv") if r["outcome"] == "1" and int(r["scenario"]) < 12]
+            for s in landed[:2]:
+                plot_gfold_plans(gf, s)

@@ -1,0 +1,12 @@
+Booster Landing (REAL mode, ship sway up to 5 m) - GPU genetic algorithm on NVIDIA GeForce RTX 3070
+real mode: engine starts 3, score safety-first, sensor noise x1, sensor delay 2 steps, deck heave up to 1.5 m
+network 12-8-2 (122 weights)  population 1024  scenarios/gen 32  generations 0  sigma 0.03 -> 0.005000  seed 1
+starting from outputs/gfold/bc_8/weights.txt
+gen    0  best cost   149.44  median   149.44  best lands  0/32  (0.2s)
+
+training: 0.2s (0.185s per generation, 32768 episodes)
+test on 1000 new scenarios: landed 0 (0.0%), crashed 1000, tipped 0, out of bounds 0, timeout 0
+mean test cost 147.94, mean fuel used per landing 0 kg
+mean engine starts per flight 0.00, mean landing time 0.0 s
+GPU vs CPU reference: same outcome on 200/200, max landing-x difference 0.000122 m
+SUMMARY algo=ga mode=real hist=0 net=12-8-2 params=122 landed=0 test=1000 crashed=1000 tipped=0 oob=0 timeout=0 cost=147.944 fuel=0.0 train_s=0.2 cpu_match=200 ignitions=0.00 land_time=0.00

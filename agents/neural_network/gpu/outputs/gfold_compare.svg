@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="420" viewBox="0 0 760 420" font-family="sans-serif" font-size="12">
+<rect width="760" height="420" fill="white"/>
+<text x="380.0" y="28" font-size="16" font-weight="bold" text-anchor="middle">Real mode, 1,000 test flights: % landed (median of 3 seeds)</text>
+<text x="18" y="195.0" text-anchor="middle" transform="rotate(-90 18 195.0)">% landed</text>
+<line x1="80" y1="340.0" x2="740" y2="340.0" stroke="#eee"/>
+<text x="74" y="344.0" text-anchor="end">0</text>
+<line x1="80" y1="282.0" x2="740" y2="282.0" stroke="#eee"/>
+<text x="74" y="286.0" text-anchor="end">13</text>
+<line x1="80" y1="224.0" x2="740" y2="224.0" stroke="#eee"/>
+<text x="74" y="228.0" text-anchor="end">26</text>
+<line x1="80" y1="166.0" x2="740" y2="166.0" stroke="#eee"/>
+<text x="74" y="170.0" text-anchor="end">39</text>
+<line x1="80" y1="108.0" x2="740" y2="108.0" stroke="#eee"/>
+<text x="74" y="112.0" text-anchor="end">51</text>
+<line x1="80" y1="50.0" x2="740" y2="50.0" stroke="#eee"/>
+<text x="74" y="54.0" text-anchor="end">64</text>
+<rect x="102.0" y="222.2" width="42.0" height="117.8" fill="#bdbdbd"/>
+<text x="124.0" y="219.2" text-anchor="middle" font-size="9">26.1</text>
+<text x="190.0" y="356" text-anchor="middle">G-FOLD alone</text>
+<rect x="366.0" y="76.4" width="42.0" height="263.6" fill="#74a9cf"/>
+<text x="388.0" y="73.4" text-anchor="middle" font-size="9">58.4</text>
+<rect x="454.0" y="91.7" width="42.0" height="248.3" fill="#d7301f"/>
+<text x="476.0" y="88.7" text-anchor="middle" font-size="9">55.0</text>
+<text x="410.0" y="356" text-anchor="middle">8-node network</text>
+<rect x="586.0" y="159.0" width="42.0" height="181.0" fill="#74a9cf"/>
+<text x="608.0" y="156.0" text-anchor="middle" font-size="9">40.1</text>
+<rect x="674.0" y="223.1" width="42.0" height="116.9" fill="#d7301f"/>
+<text x="696.0" y="220.1" text-anchor="middle" font-size="9">25.9</text>
+<text x="630.0" y="356" text-anchor="middle">64-64 network</text>
+<rect x="80" y="390" width="14" height="14" fill="#bdbdbd"/>
+<text x="100" y="401">G-FOLD (no network)</text>
+<rect x="250" y="390" width="14" height="14" fill="#74a9cf"/>
+<text x="270" y="401">GA from scratch (no G-FOLD)</text>
+<rect x="420" y="390" width="14" height="14" fill="#0570b0"/>
+<text x="440" y="401">imitation only</text>
+<rect x="590" y="390" width="14" height="14" fill="#d7301f"/>
+<text x="610" y="401">imitation + GA</text>
+<line x1="80" y1="340" x2="740" y2="340" stroke="#333"/>
+</svg>

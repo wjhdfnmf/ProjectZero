@@ -6,6 +6,7 @@ A GPU rewrite of Neural Network v3.0. A whole population of networks lives on th
 - **[REPORT.md](REPORT.md)** has night 1's results: the GPU rewrite, easy and hard mode.
 - **[REPORT_DAY2.md](REPORT_DAY2.md)** has day 2's results: the faster warp kernel, real mode, transfer learning, and a real-mode flagship that lands 85.5% of flights.
 - **[VISUALIZER.md](VISUALIZER.md)** covers the 3D desktop app that flies the trained networks live (`build.bat visualizer`, then `visualizer.exe`).
+- **[GFOLD.md](GFOLD.md)** covers G-FOLD, a convex-optimization flight computer (the method behind real booster landings), written from scratch here. It flies the booster on its own, and it's compared with networks that learn without it and from it.
 
 ## Files
 
@@ -17,7 +18,10 @@ A GPU rewrite of Neural Network v3.0. A whole population of networks lives on th
 | `verify_bench.cu` | Builds networks with v3 `neural_network.h`, converts them, checks the GPU gives the same outputs, then benchmarks v3 CPU, v4 CPU and both GPU modes. |
 | `rocket.cuh` | Booster Landing physics, easy and hard mode, observations (with optional memory), commands and cost. Shared by the GPU and CPU (`__host__ __device__`). |
 | `rocket.cu` | Booster Landing trainer (`algo=ga` or `algo=es`): GPU episode kernel, CPU reference, training loop, validation, and the held-out test. All settings are listed at the top of the file. |
-| `visualizer.cu` | 3D desktop visualizer (Win32 + OpenGL): flies trained networks live, with six cameras. `--check` verifies it against `test.csv`. |
+| `visualizer.cu` | 3D desktop visualizer (Win32 + OpenGL): flies trained networks live, with six cameras. `--check` verifies it against `test.csv`. `--gfold` adds the G-FOLD flight computer, drawing its current plan. |
+| `gfold.h` | G-FOLD: a second-order-cone solver (ADMM with cone projections and an infeasibility certificate), the convexified landing problem, and the closed-loop flight computer (estimator, ignition search, re-planning twice a second, tracking, terminal descent). Host C++, no libraries. |
+| `gfold.cu` | `gfold.exe demo` flies the 1,000 test flights with G-FOLD alone, `trace` prints one flight step by step, `data` records G-FOLD's commands, and `bc` trains a network to imitate them (behavior cloning, backprop + Adam). |
+| `gfold.sh` | The G-FOLD experiments: G-FOLD alone, then imitation, then GA fine-tuning, compared with networks trained without G-FOLD. Resumable. |
 | `day2.sh` | Day 2's real-mode experiments (sizes, transfer, ablation, fine-tuning). Resumable. |
 | `curriculum.sh` | Engine-start curriculum experiment (10 → 5 → 3 starts). Resumable. |
 | `time_bonus.sh` | Landing-speed bonus experiment (`time_bonus=`). Resumable. |

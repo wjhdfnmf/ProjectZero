@@ -1,6 +1,6 @@
 @echo off
 rem Build the GPU programs on Windows with the CUDA toolkit + Visual Studio C++ tools.
-rem usage: build.bat            (builds verify_bench.exe, rocket.exe and visualizer.exe)
+rem usage: build.bat            (builds verify_bench.exe, rocket.exe, visualizer.exe and gfold.exe)
 rem        build.bat rocket     (builds one)
 rem Set ARCH for other GPUs (default sm_86 = RTX 30 series), e.g. set ARCH=sm_89
 
@@ -25,6 +25,7 @@ if "%1"=="" (
   call :build verify_bench || exit /b 1
   call :build rocket || exit /b 1
   call :build visualizer || exit /b 1
+  call :build gfold || exit /b 1
 ) else (
   call :build %1 || exit /b 1
 )

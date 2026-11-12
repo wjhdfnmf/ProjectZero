@@ -85,6 +85,26 @@ The bottom-right panel (**V** toggles it) shows the network thinking, every 0.05
 
 For big networks, only the 500 strongest signals are drawn. The view recomputes the same math as the flight; the flight itself still uses the training code.
 
+## Watching G-FOLD fly
+
+```bat
+visualizer.exe --gfold          :: the three networks plus the G-FOLD flight computer (press M)
+visualizer.exe --gfold-only
+```
+
+![G-FOLD in the visualizer](outputs/visualizer/9_gfold.png)
+
+[G-FOLD](GFOLD.md) is the convex-optimization flight computer: no network. It sees the same noisy, delayed sensors and flies the same physics.
+- **The cyan line** is its current plan to the pad, re-solved twice a second.
+- **The bottom-right panel** replaces the network view. It shows:
+  - the computer's phase (stabilize, coast, powered descent, terminal)
+  - time and propellant left on the plan
+  - how many convex problems it has solved
+  - its state and wind estimates
+  - the plan's throttle (bars) and thrust tilt (line) per step
+
+`--check` verifies it too: 12 of 12 flights match `outputs/gfold/test.csv`. Each flight takes about 30 s of computing, so `--check` is slow, and at high playback speeds the computer may lag behind real time.
+
 ## Recording a video
 
 ```bat

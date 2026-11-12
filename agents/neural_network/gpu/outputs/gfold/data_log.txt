@@ -1,0 +1,5 @@
+  500 / 2000 flights
+  1000 / 2000 flights
+  1500 / 2000 flights
+  2000 / 2000 flights
+wrote outputs/gfold/bc_data.bin: 405929 (input, command) pairs from 2000 flights (G-FOLD landed 492)

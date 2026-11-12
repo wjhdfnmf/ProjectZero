@@ -1,0 +1,10 @@
+behavior cloning: 405929 samples (20296 held out), network 12 64 64 2, 40 epochs
+  epoch   5  train mse 0.07145  held-out mse 0.07122
+  epoch  10  train mse 0.06909  held-out mse 0.06919
+  epoch  15  train mse 0.06843  held-out mse 0.06803
+  epoch  20  train mse 0.06679  held-out mse 0.06642
+  epoch  25  train mse 0.06598  held-out mse 0.06519
+  epoch  30  train mse 0.06544  held-out mse 0.06484
+  epoch  35  train mse 0.06582  held-out mse 0.06468
+  epoch  40  train mse 0.06389  held-out mse 0.06439
+wrote outputs/gfold/bc_64x64/weights.txt
