@@ -96,6 +96,8 @@ The cost is **graded**, so evolution gets a signal from the very first, terrible
 
 **Optional bonus for landing quickly** (`time_bonus=w`, any mode, off by default): a successful landing also earns **w × (1 − flight time / 80 s)**. With w = 30, landing in 40 s earns 15 points and landing in 30 s earns 18.75. Crashes earn nothing from it, so it never rewards crashing sooner. All results before this was added used w = 0.
 
+**Optional landing gate** (`align=w`, `align_h=10`, any mode, off by default). When the booster first passes 10 m above the deck, it should already be lined up for a straight drop. Any misalignment there costs **w × min(3, |x to pad| / 5 m + |sideways speed| / 1 m/s + |tilt| / 3° + |rotation| / 0.1 rad/s)**. The term is added to **every** outcome, and a flight that never reaches the gate pays the full 3w. A first version charged only landings and crashes, and training immediately learned to tip over instead: 991 of 1,000 test flights. All results before this was added used w = 0.
+
 ## 6. How a network is judged
 
 - **Training:** every generation flies a fresh batch of 16–32 random scenarios. A network's score is its average cost over the batch.

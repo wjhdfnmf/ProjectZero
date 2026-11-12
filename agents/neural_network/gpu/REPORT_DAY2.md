@@ -218,6 +218,24 @@ Added on request: `time_bonus=w` gives a successful landing an extra **w × (1 �
 - **To get faster landings,** the rules have to make the fast strategy safe enough, for example deeper throttling (`min_throttle`), more engine starts, or a smaller time penalty for a slightly harder touchdown. A bigger bonus alone just gets traded away for safety.
 - **Fine-tuning at 32 scenarios per generation slightly *lowers* the flagship's landing rate** (77–85%, even with no bonus, vs 85.5%). The flagship's final stage used 64 scenarios per generation; noisier evaluation lets it drift. So none of these models replaces the flagship.
 
+### 4.3 A landing gate: line up 10 m above the deck (no clear effect)
+
+**The idea:** the booster should already be lined up a few meters above the deck, so the last meters are a straight drop. This targets sideways speed at touchdown, which is the most common way G-FOLD fails and a frequent one for the networks. `align=w` adds w × misalignment at 10 m to the cost: distance to the pad / 5 m, plus sideways speed / 1 m/s, plus tilt / 3°, plus spin, capped at 3 (see PROBLEM.md). The script is `align.sh`, the results `outputs/align_summary.csv`. Real mode, 8-node network, % of 1,000 test flights landed:
+
+| Run | Seed 1 | Seed 2 | Seed 3 | Median |
+|---|---|---|---|---|
+| From scratch, no gate (day 2, section 3.1) | 58.4 | 56.7 | 58.5 | **58.4** |
+| From scratch, gate w = 5 | 56.3 | 51.4 | 59.3 | 56.3 |
+| From scratch, gate w = 10 | 52.6 | 50.2 | 59.4 | 52.6 |
+| Flagship fine-tune, 400 gens, no gate | 80.3 | 83.9 | 81.5 | 81.5 |
+| Flagship fine-tune, 400 gens, gate w = 10 | 82.3 | 80.6 | (stopped) | — |
+
+**Takeaways:**
+- **From scratch, the gate slightly hurts,** and more so at w = 10. It adds a second goal that competes with simply landing, while the networks are still learning to land at all.
+- **On the flagship it's a wash:** +2.0 points on seed 1, −3.3 on seed 2. The flagship already passes 10 m well lined up: its average gate penalty at w = 10 is 2.4 of a possible 30.
+- **The first version was a reward-hacking lesson.** It charged only landings and crashes. Tipping over (cost about 100, no gate term) then became cheaper than a fast crash plus the gate, so training learned to tip over on **991 of 1,000** flights. The gate now applies to every outcome.
+- **The seed-3 gate fine-tune was stopped before finishing,** to free the GPU.
+
 ## 5. What I deferred, and why
 
 | Next step from night 1 | Status |

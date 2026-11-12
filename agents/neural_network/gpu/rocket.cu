@@ -13,6 +13,8 @@
 // usage: rocket.exe [key=value ...]
 //   mode=easy      easy | hard (drone ship, 40% minimum throttle, engine lag, stronger wind)
 //   ship=5         hard mode: max drone-ship sway in m (20 = the first, unrealistic version)
+//   align=0        any mode: landing-gate term: cost += align x misalignment (capped at 3) when passing
+//                  align_h=10 m above the deck (over the pad, no sideways speed, upright), so it comes down straight
 //   time_bonus=0   any mode: landings also score time_bonus x (1 - flight time / 80 s), so faster is better
 //   algo=ga        ga | es
 //   hidden=64,64   hidden layer sizes
@@ -291,7 +293,7 @@ int main(int argc, char** argv) {
 	int warp_smem_kb = 48;
 	// real mode settings (-1 = use the real-mode default)
 	int ignitions = -1, score = -1, delay = -1;
-	float time_bonus = 0.0f;
+	float time_bonus = 0.0f, align = 0.0f, align_h = 10.0f;
 	float noise = -1.0f;
 	std::string init_file;
 	for (int i = 1; i < argc; ++i) {
@@ -319,6 +321,8 @@ int main(int argc, char** argv) {
 		else if (k == "delay") delay = std::stoi(v);
 		else if (k == "init") init_file = v;
 		else if (k == "time_bonus") time_bonus = std::stof(v);
+		else if (k == "align") align = std::stof(v);
+		else if (k == "align_h") align_h = std::stof(v);
 		else if (k == "kernel") kernel = v;
 		else if (k == "bench_kernels") bench_kernels = (v == "1");
 		else if (k == "warp_smem_kb") warp_smem_kb = std::stoi(v);
@@ -347,6 +351,8 @@ int main(int argc, char** argv) {
 	}
 	if (P.delay > rocket::MAX_DELAY) { fprintf(stderr, "delay max is %d\n", rocket::MAX_DELAY); return 1; }
 	P.time_bonus = time_bonus;
+	P.align = align; P.align_h = align_h;
+	if (align > 0) printf("landing gate: misalignment %g m above the deck costs %g x (|dx|/5 + |dvx|/1 + |tilt|/3deg + |rate|/0.1, max 3)\n", align_h, align);
 	if (time_bonus > 0) printf("time bonus: successful landings earn %g x (1 - flight time / 80 s)\n", time_bonus);
 	std::vector<int> sizes = {rocket::n_inputs(P, hist)};
 	sizes.insert(sizes.end(), hidden.begin(), hidden.end());

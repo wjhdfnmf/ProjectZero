@@ -56,6 +56,11 @@ struct Params {
 	int delay = 0;                 // sensor delay in steps (2 = 0.1 s), max MAX_DELAY
 	// any mode: bonus for landing quickly (0 = off, the original scores)
 	float time_bonus = 0.0f;       // successful landing: cost -= time_bonus * (1 - flight time / 80 s)
+	// any mode: landing gate. Passing align_h above the deck, the booster should already be lined
+	// up for a straight drop: over the pad, no sideways speed, upright. Misalignment there costs
+	// align x (|dx|/5 m + |dvx|/1 m/s + |tilt|/3 deg + |rate|/0.1), capped at 3 (0 = off).
+	float align = 0.0f;
+	float align_h = 10.0f;         // m above the deck
 };
 
 // one starting situation (randomized)
@@ -75,6 +80,7 @@ struct State {
 	float pad_x, pad_vx; // landing pad position/velocity (always 0 in easy mode)
 	float pad_y, pad_vy; // deck height/vertical velocity (always 0 outside real mode)
 	int ignitions;       // engine starts used
+	float gate_err;      // misalignment when passing the landing gate (-1 = not reached yet)
 	uint32_t seed;       // sensor noise stream
 	int steps;
 	int outcome;
@@ -91,6 +97,7 @@ __host__ __device__ inline State start(const Scenario& s) {
 	st.pad_y = s.heave_amp * sinf(s.heave_phase);
 	st.pad_vy = s.heave_amp * s.heave_w * cosf(s.heave_phase);
 	st.ignitions = 0;
+	st.gate_err = -1.0f;
 	st.seed = s.noise_seed;
 	return st;
 }
@@ -231,6 +238,9 @@ __host__ __device__ inline void step(State& st, float throttle, float gimbal, co
 		st.pad_vy = s.heave_amp * s.heave_w * cosf(s.heave_w * st.t + s.heave_phase);
 	}
 
+	if (P.align > 0.0f && st.gate_err < 0.0f && st.y - st.pad_y <= P.align_h)
+		st.gate_err = fabsf(st.x - st.pad_x) / 5.0f + fabsf(st.vx - st.pad_vx) / 1.0f +
+		              fabsf(st.theta) / 0.0524f + fabsf(st.omega) / 0.1f;
 	if (st.y <= st.pad_y) {
 		// landing is judged relative to the (possibly moving) pad
 		const bool ok = fabsf(st.x - st.pad_x) <= P.pad_half && fabsf(st.vy - st.pad_vy) <= 3.0f &&
@@ -245,6 +255,13 @@ __host__ __device__ inline void step(State& st, float throttle, float gimbal, co
 	} else if (st.steps >= P.max_steps) {
 		st.outcome = TIMEOUT;
 	}
+}
+
+// optional landing-gate term, added to EVERY outcome (otherwise tipping over or flying away
+// would dodge it, and early in training they did); a gate never reached = fully misaligned
+__host__ __device__ inline float gate_cost(const State& st, const Params& P) {
+	if (P.align <= 0.0f) return 0.0f;
+	return P.align * (st.gate_err < 0.0f ? 3.0f : fminf(3.0f, st.gate_err));
 }
 
 // cost of a finished episode (lower is better)
@@ -270,12 +287,12 @@ __host__ __device__ inline float cost(const State& st, const Params& P) {
 		// optional: faster landings score better (successful landings only)
 		if (P.time_bonus > 0.0f && st.outcome == LANDED)
 			c -= P.time_bonus * fmaxf(0.0f, 1.0f - st.t / (P.max_steps * P.dt));
-		return c;
+		return c + gate_cost(st, P);
 	}
 	case TIMEOUT:
-		return 80.0f + 0.02f * dist + 0.2f * fabsf(dvy);
+		return 80.0f + 0.02f * dist + 0.2f * fabsf(dvy) + gate_cost(st, P);
 	default:  // TIPPED, OUT_OF_BOUNDS
-		return 100.0f + 0.02f * dist;
+		return 100.0f + 0.02f * dist + gate_cost(st, P);
 	}
 }
 
