@@ -11,7 +11,38 @@ The core idea is a clean **agent ↔ domain** loop:
 
 A **trainer** sits on top of that loop. It runs a population of agents through the domain, keeps the fittest, mutates them, and repeats.
 
-![Cart balance fitness over a run](domains/_not_mine/cart_balance/outputs/fitness.png)
+![Flagship network's test landings on a moving drone ship](agents/neural_network/gpu/outputs/flagship/trajectories.svg)
+
+*GPU neural network v4: the hard-mode flagship (128-128) landing a booster on a swaying drone ship. These are its first 12 of 1,000 unseen test flights, drawn relative to the moving pad. It lands 96.3% of them.*
+
+---
+
+## Branch progress
+
+### This branch: `gpu-network`
+
+**Progress: the network runs on the GPU, and learns to land a rocket booster.** It adds `agents/neural_network/gpu/`, a CUDA rewrite (v4):
+- **Speed:** whole populations are evolved on the GPU with a genetic algorithm or Evolution Strategies. Networks built with the v3 code give the same outputs on the GPU. A rocket-size network runs about **16,000× faster** than v3 on one CPU thread: a run that would take about 8.5 days takes 2–4 minutes.
+- **Booster Landing,** a new problem: land a 20 t booster from 2 km on a 30 m pad, with wind the network can't sense. Easy mode has a fixed pad. Hard mode adds a swaying drone ship, a 40% minimum throttle (so the booster can't hover) and engine lag.
+- **Results on 1,000 unseen flights:** easy mode **99.1–100%**; hard mode **94–97%**. The 128-128 flagship lands **96.3%**, but it found a loophole: it pulses the engine dozens of times to fake a hover.
+- **What helped and what didn't:** ES, short-term memory and a small output-layer initialization lost to a well-tuned GA. Annealing the mutation size and a realistic problem were what mattered.
+
+Write-ups: [REPORT.md](agents/neural_network/gpu/REPORT.md) and [PROBLEM.md](agents/neural_network/gpu/PROBLEM.md).
+
+**Next:** [`gpu-network-v2`](https://github.com/wjhdfnmf/ProjectZero/tree/gpu-network-v2) closes the loophole with a realistic mode.
+
+### All branches
+
+Each branch builds on the one before it, so the latest branch has everything.
+
+| Branch | Builds on | What it adds | Headline result |
+|---|---|---|---|
+| [`main`](https://github.com/wjhdfnmf/ProjectZero/tree/main) | — | The framework: the v3.0 neural network, trainer v3.0, cart balance, multi-armed bandit, grid world, the unified `system/` and the Qt GUI. Also the fix for random selection in the trainer. | Baseline |
+| [`sine-trainer`](https://github.com/wjhdfnmf/ProjectZero/tree/sine-trainer) | `main` | A **sine-wave trainer**: evolves the v3.0 network to fit sin(x), with SVG plots. | 1-8-1 network: error 0.0029 after 3,000 generations |
+| [`sine-improvements`](https://github.com/wjhdfnmf/ProjectZero/tree/sine-improvements) | `sine-trainer` | **Better sine training**: configurable settings, a sweep of 13 configurations × 5 seeds, a gradient-descent baseline, and the best settings as the new defaults. | **8.6×** lower error (median 0.0041 → 0.00047) |
+| [`cart-trainer`](https://github.com/wjhdfnmf/ProjectZero/tree/cart-trainer) | `sine-improvements` | A **cart-balance trainer** and report. Optional fixes to the cart-balance domain close the loophole where the cart drives off its track (the original problem is unchanged when they're off). | Balanced from **all 19** start angles from 45° to 135° (best seed) |
+| **`gpu-network` (this branch)** | `cart-trainer` | **GPU neural network v4** (CUDA): whole populations evolved on the GPU with a GA or Evolution Strategies, and a new problem, **Booster Landing** (easy and hard mode). | **16,000×** faster than v3; **96.3%** of hard-mode landings |
+| [`gpu-network-v2`](https://github.com/wjhdfnmf/ProjectZero/tree/gpu-network-v2) | `gpu-network` | A faster warp kernel; a realistic **real mode**; transfer learning; a **3D visualizer** with video export; weight paintings; **G-FOLD** (a convex-optimization flight computer); and landing-speed and landing-gate scoring experiments. | Real-mode flagship **85.5%**; G-FOLD alone 26.1% |
 
 ---
 
@@ -20,8 +51,10 @@ A **trainer** sits on top of that loop. It runs a population of agents through t
 ### Agents (`agents/`)
 - **Neural network** (`agents/neural_network/network/neural_network.h`): a feed-forward network built from `Node` → `Layer` → `Network`, with configurable nodes per layer, weight mutation and weight import/export. See the [deep dive](#deep-dive-the-neural-network-agent) below.
 - **Network trainer v3.0** (`agents/neural_network/trainer_3_0/`): an evolutionary trainer that evolves a population of 100 networks on the cart-balance domain. It logs fitness history, replays the best network, and plots the results with gnuplot.
-- **Q-learner** (`agents/q_learner/`): a tabular Q-learning agent for the grid domain (work in progress).
+- **Sine trainer** (`agents/neural_network/sine_trainer/`): evolves the v3.0 network to approximate sin(x), with SVG plots and an improvements report ([IMPROVEMENTS.md](agents/neural_network/sine_trainer/IMPROVEMENTS.md)).
+- **Cart trainer** (`agents/neural_network/cart_trainer/`): evolves the v3.0 network on cart balance, with a fix for the loophole where the cart leaves its track. See its [REPORT.md](agents/neural_network/cart_trainer/REPORT.md).
 - **GPU neural network v4** (`agents/neural_network/gpu/`): a CUDA rewrite that evolves whole populations of networks on the GPU, about 16,000× faster than v3 for a 4,866-weight network. It trains a booster to land on a moving drone ship (94–97% of unseen flights). See its [REPORT.md](agents/neural_network/gpu/REPORT.md) and [PROBLEM.md](agents/neural_network/gpu/PROBLEM.md).
+- **Q-learner** (`agents/q_learner/`): a tabular Q-learning agent for the grid domain (work in progress).
 - Older trainer and network versions are kept in `_complete/` and `_outdated/`.
 
 ### Domains (`domains/`)
@@ -148,6 +181,32 @@ make
 gnuplot outputs/graph_all.gnu
 ```
 
+**Sine trainer:**
+
+```bash
+cd agents/neural_network/sine_trainer
+make
+./run 1
+python plot.py
+```
+
+**Cart trainer:**
+
+```bash
+cd agents/neural_network/cart_trainer
+make
+./run 1
+python plot_cart.py
+```
+
+**GPU network and Booster Landing** (Windows, CUDA toolkit + Visual Studio C++ tools, an NVIDIA GPU):
+
+```bat
+cd agents\neural_network\gpu
+build.bat
+rocket.exe mode=hard hidden=128,128 scen=32 gens=800
+```
+
 **Run the cart balance domain on its own:**
 
 ```bash
@@ -180,6 +239,7 @@ make system
 This is a long-running personal project that started in 2016–2017 and was picked back up in 2025.
 - The neural network, trainer v3.0 and cart-balance domain work, and the most recent changes are there (cart force, graphs).
 - The unified `system/` code, the Qt GUI and the Q-learner are work in progress.
+- **This branch** adds the sine and cart trainers, and the GPU network with Booster Landing (easy and hard mode), all working (see [Branch progress](#branch-progress)).
 
 ## Credits
 
