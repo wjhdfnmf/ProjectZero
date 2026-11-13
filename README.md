@@ -11,7 +11,9 @@ The core idea is a clean **agent ↔ domain** loop:
 
 A **trainer** sits on top of that loop. It runs a population of agents through the domain, keeps the fittest, mutates them, and repeats.
 
-![Cart balance fitness over a run](domains/_not_mine/cart_balance/outputs/fitness.png)
+![Neural network v3.0 learning sin(x): training error over 3,000 generations](media/sine_fitness.svg)
+
+*The v3.0 neural network (1-8-8-1, tanh), evolved to approximate sin(x) on [-π, π]. Error is the mean squared error over 64 points. The best network's error falls from 0.14 to 0.00057 in 3,000 generations (population 100, seed 1). The sine trainer is on the [`sine-improvements`](https://github.com/wgspacecan/ProjectZero/tree/sine-improvements/agents/neural_network/sine_trainer) branch.*
 
 ---
 
