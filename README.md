@@ -11,7 +11,38 @@ The core idea is a clean **agent ↔ domain** loop:
 
 A **trainer** sits on top of that loop. It runs a population of agents through the domain, keeps the fittest, mutates them, and repeats.
 
-![Cart balance fitness over a run](domains/_not_mine/cart_balance/outputs/fitness.png)
+![Evolved network balancing the pendulum from 95 degrees](agents/neural_network/cart_trainer/outputs/rollout_angle.svg)
+
+*The v3.0 network evolved on Cart Balance (by Sierra Gonzales): starting 5° from upright, the pendulum is upright within about 2 s and stays within 0.02°, while the cart stays on its 10 m track (default settings, seed 1).*
+
+---
+
+## Branch progress
+
+### This branch: `cart-trainer`
+
+**Progress: the network now balances the pendulum properly.** It adds `agents/neural_network/cart_trainer/` and its report:
+- **Found a loophole:** the original setup can't see the cart and never enforces the 10 m track. The best controllers balanced the pendulum while the cart rolled up to **129 m** away.
+- **Fixed it:** the network now sees the cart, leaving the track is penalized, and optional track walls stop the cart. With those, the default setup holds the pendulum **within 0.02° of upright** from a 95° start. With seed 1 it stays upright from **all 19 start angles from 45° to 135°**, most of them never seen in training.
+- **The domain changes** (by Sierra Gonzales, used with credit) are optional. With them off, the outputs are byte-identical to the original.
+- **Results vary a lot by seed** (1 of 5 seeds solves every start angle), so running several seeds and keeping the best is part of the recipe.
+
+Full write-up: [the cart trainer's REPORT.md](agents/neural_network/cart_trainer/REPORT.md).
+
+**Next:** [`gpu-network`](https://github.com/wjhdfnmf/ProjectZero/tree/gpu-network) moves the network to the GPU.
+
+### All branches
+
+Each branch builds on the one before it, so the latest branch has everything.
+
+| Branch | Builds on | What it adds | Headline result |
+|---|---|---|---|
+| [`main`](https://github.com/wjhdfnmf/ProjectZero/tree/main) | — | The framework: the v3.0 neural network, trainer v3.0, cart balance, multi-armed bandit, grid world, the unified `system/` and the Qt GUI. Also the fix for random selection in the trainer. | Baseline |
+| [`sine-trainer`](https://github.com/wjhdfnmf/ProjectZero/tree/sine-trainer) | `main` | A **sine-wave trainer**: evolves the v3.0 network to fit sin(x), with SVG plots. | 1-8-1 network: error 0.0029 after 3,000 generations |
+| [`sine-improvements`](https://github.com/wjhdfnmf/ProjectZero/tree/sine-improvements) | `sine-trainer` | **Better sine training**: configurable settings, a sweep of 13 configurations × 5 seeds, a gradient-descent baseline, and the best settings as the new defaults. | **8.6×** lower error (median 0.0041 → 0.00047) |
+| **`cart-trainer` (this branch)** | `sine-improvements` | A **cart-balance trainer** and report. Optional fixes to the cart-balance domain close the loophole where the cart drives off its track (the original problem is unchanged when they're off). | Balanced from **all 19** start angles from 45° to 135° (best seed) |
+| [`gpu-network`](https://github.com/wjhdfnmf/ProjectZero/tree/gpu-network) | `cart-trainer` | **GPU neural network v4** (CUDA): whole populations evolved on the GPU with a GA or Evolution Strategies, and a new problem, **Booster Landing** (easy and hard mode). | **16,000×** faster than v3; **96.3%** of hard-mode landings |
+| [`gpu-network-v2`](https://github.com/wjhdfnmf/ProjectZero/tree/gpu-network-v2) | `gpu-network` | A faster warp kernel; a realistic **real mode**; transfer learning; a **3D visualizer** with video export; weight paintings; **G-FOLD** (a convex-optimization flight computer); and landing-speed and landing-gate scoring experiments. | Real-mode flagship **85.5%**; G-FOLD alone 26.1% |
 
 ---
 
@@ -20,6 +51,8 @@ A **trainer** sits on top of that loop. It runs a population of agents through t
 ### Agents (`agents/`)
 - **Neural network** (`agents/neural_network/network/neural_network.h`): a feed-forward network built from `Node` → `Layer` → `Network`, with configurable nodes per layer, weight mutation and weight import/export. See the [deep dive](#deep-dive-the-neural-network-agent) below.
 - **Network trainer v3.0** (`agents/neural_network/trainer_3_0/`): an evolutionary trainer that evolves a population of 100 networks on the cart-balance domain. It logs fitness history, replays the best network, and plots the results with gnuplot.
+- **Sine trainer** (`agents/neural_network/sine_trainer/`): evolves the v3.0 network to approximate sin(x), with SVG plots and an improvements report ([IMPROVEMENTS.md](agents/neural_network/sine_trainer/IMPROVEMENTS.md)).
+- **Cart trainer** (`agents/neural_network/cart_trainer/`): evolves the v3.0 network on cart balance, with a fix for the loophole where the cart leaves its track. See its [REPORT.md](agents/neural_network/cart_trainer/REPORT.md).
 - **Q-learner** (`agents/q_learner/`): a tabular Q-learning agent for the grid domain (work in progress).
 - Older trainer and network versions are kept in `_complete/` and `_outdated/`.
 
@@ -147,6 +180,24 @@ make
 gnuplot outputs/graph_all.gnu
 ```
 
+**Sine trainer:**
+
+```bash
+cd agents/neural_network/sine_trainer
+make
+./run 1
+python plot.py
+```
+
+**Cart trainer:**
+
+```bash
+cd agents/neural_network/cart_trainer
+make
+./run 1
+python plot_cart.py
+```
+
 **Run the cart balance domain on its own:**
 
 ```bash
@@ -179,6 +230,7 @@ make system
 This is a long-running personal project that started in 2016–2017 and was picked back up in 2025.
 - The neural network, trainer v3.0 and cart-balance domain work, and the most recent changes are there (cart force, graphs).
 - The unified `system/` code, the Qt GUI and the Q-learner are work in progress.
+- **This branch** adds the sine and cart trainers, both working, with reports (see [Branch progress](#branch-progress)).
 
 ## Credits
 
