@@ -11,7 +11,36 @@ The core idea is a clean **agent ↔ domain** loop:
 
 A **trainer** sits on top of that loop. It runs a population of agents through the domain, keeps the fittest, mutates them, and repeats.
 
-![Cart balance fitness over a run](domains/_not_mine/cart_balance/outputs/fitness.png)
+![Neural network v3.0 learning sin(x): training error over 3,000 generations](agents/neural_network/sine_trainer/outputs/fitness.svg)
+
+*The v3.0 neural network (1-8-1, tanh) evolved to approximate sin(x) on [-π, π] (mean squared error over 64 points). With seed 1 the best network's error falls from 0.19 to 0.0029 in 3,000 generations (population 100).*
+
+---
+
+## Branch progress
+
+### This branch: `sine-trainer`
+
+**Progress: a first task for the neural network besides cart balance.** It adds `agents/neural_network/sine_trainer/`:
+- evolves the v3.0 network (1-8-1, `tanh`) to approximate sin(x) at 64 points on [-π, π]
+- uses trainer v3.0's loop (evaluate, tournament, mutated copies), with the selection fix and elitism
+- **Result:** with seed 1 the best mean squared error falls from **0.19 to 0.0029** in 3,000 generations (population 100), in about 40 s.
+- Plots are SVGs, made with the Python standard library only. See [the sine trainer's README](agents/neural_network/sine_trainer/README.md).
+
+**Next:** [`sine-improvements`](https://github.com/wjhdfnmf/ProjectZero/tree/sine-improvements) tunes the network and training.
+
+### All branches
+
+Each branch builds on the one before it, so the latest branch has everything.
+
+| Branch | Builds on | What it adds | Headline result |
+|---|---|---|---|
+| [`main`](https://github.com/wjhdfnmf/ProjectZero/tree/main) | — | The framework: the v3.0 neural network, trainer v3.0, cart balance, multi-armed bandit, grid world, the unified `system/` and the Qt GUI. Also the fix for random selection in the trainer. | Baseline |
+| **`sine-trainer` (this branch)** | `main` | A **sine-wave trainer**: evolves the v3.0 network to fit sin(x), with SVG plots. | 1-8-1 network: error 0.0029 after 3,000 generations |
+| [`sine-improvements`](https://github.com/wjhdfnmf/ProjectZero/tree/sine-improvements) | `sine-trainer` | **Better sine training**: configurable settings, a sweep of 13 configurations × 5 seeds, a gradient-descent baseline, and the best settings as the new defaults. | **8.6×** lower error (median 0.0041 → 0.00047) |
+| [`cart-trainer`](https://github.com/wjhdfnmf/ProjectZero/tree/cart-trainer) | `sine-improvements` | A **cart-balance trainer** and report. Optional fixes to the cart-balance domain close the loophole where the cart drives off its track (the original problem is unchanged when they're off). | Balanced from **all 19** start angles from 45° to 135° (best seed) |
+| [`gpu-network`](https://github.com/wjhdfnmf/ProjectZero/tree/gpu-network) | `cart-trainer` | **GPU neural network v4** (CUDA): whole populations evolved on the GPU with a GA or Evolution Strategies, and a new problem, **Booster Landing** (easy and hard mode). | **16,000×** faster than v3; **96.3%** of hard-mode landings |
+| [`gpu-network-v2`](https://github.com/wjhdfnmf/ProjectZero/tree/gpu-network-v2) | `gpu-network` | A faster warp kernel; a realistic **real mode**; transfer learning; a **3D visualizer** with video export; weight paintings; **G-FOLD** (a convex-optimization flight computer); and landing-speed and landing-gate scoring experiments. | Real-mode flagship **85.5%**; G-FOLD alone 26.1% |
 
 ---
 
@@ -20,6 +49,7 @@ A **trainer** sits on top of that loop. It runs a population of agents through t
 ### Agents (`agents/`)
 - **Neural network** (`agents/neural_network/network/neural_network.h`): a feed-forward network built from `Node` → `Layer` → `Network`, with configurable nodes per layer, weight mutation and weight import/export. See the [deep dive](#deep-dive-the-neural-network-agent) below.
 - **Network trainer v3.0** (`agents/neural_network/trainer_3_0/`): an evolutionary trainer that evolves a population of 100 networks on the cart-balance domain. It logs fitness history, replays the best network, and plots the results with gnuplot.
+- **Sine trainer** (`agents/neural_network/sine_trainer/`): evolves the v3.0 network to approximate sin(x), with SVG plots.
 - **Q-learner** (`agents/q_learner/`): a tabular Q-learning agent for the grid domain (work in progress).
 - Older trainer and network versions are kept in `_complete/` and `_outdated/`.
 
@@ -147,6 +177,15 @@ make
 gnuplot outputs/graph_all.gnu
 ```
 
+**Sine trainer:**
+
+```bash
+cd agents/neural_network/sine_trainer
+make
+./run 1
+python plot.py
+```
+
 **Run the cart balance domain on its own:**
 
 ```bash
@@ -179,6 +218,7 @@ make system
 This is a long-running personal project that started in 2016–2017 and was picked back up in 2025.
 - The neural network, trainer v3.0 and cart-balance domain work, and the most recent changes are there (cart force, graphs).
 - The unified `system/` code, the Qt GUI and the Q-learner are work in progress.
+- **This branch** adds the working sine trainer (see [Branch progress](#branch-progress)).
 
 ## Credits
 
